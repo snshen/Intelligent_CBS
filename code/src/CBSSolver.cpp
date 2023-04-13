@@ -112,6 +112,8 @@ void CBSSolver::detectCollisions(const std::vector<std::vector<Point2>> &paths, 
                 collisionList.push_back(col);
         }
     }
+
+    // TODO: Call model here to sort and replace collision list
 }
 
 inline bool CBSSolver::detectCollision(int agent1, int agent2, const std::vector<Point2> &pathA, const std::vector<Point2> &pathB, Collision &col)
