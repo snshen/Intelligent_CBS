@@ -23,7 +23,7 @@ add_executable(TestAStar test/testAStar.cpp src/AStar.cpp src/MAPFLoader.cpp)
 add_executable(TestMAPFLoader test/testMAPFLoader.cpp src/MAPFLoader.cpp)
 add_executable(TestCBS test/testCBS.cpp src/MAPFLoader.cpp src/CBSSolver.cpp src/AStar.cpp)
 
-add_executable(GenerateInstances data/generate_instances.cpp)
+add_executable(GenerateInstances src/GenerateInstance.cpp)
 target_link_libraries(GenerateInstances argparse)
 
 add_test(NAME TestMAPFLoader
