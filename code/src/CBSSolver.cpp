@@ -85,6 +85,84 @@ std::vector<std::vector<Point2>> CBSSolver::solve(MAPFInstance instance)
     throw NoSolutionException();
 }
 
+std::optional<std::vector<std::vector<Point2>>> CBSSolver::safeSolve(MAPFInstance instance, bool saveData, bool useModel)
+{
+    printf("Starting CBS Solver\n");
+
+    // Initialize low level solver
+    AStar lowLevelSolver(instance);
+
+    // Create priority queue
+    std::priority_queue <CTNodeSharedPtr, 
+                         std::vector<CTNodeSharedPtr>, 
+                         CTNodeComparator 
+                        > pq;
+
+    CTNodeSharedPtr root = std::make_shared<CTNode>();
+    root->paths.resize(instance.numAgents);
+    root->id = 0;
+    numNodesGenerated++;
+
+    // Create paths for all agents
+    for (int i = 0; i < instance.startLocs.size(); i++)
+    {
+        bool found = lowLevelSolver.solve(i, root->constraintList, root->paths[i]);
+        
+        if (!found)
+            return {};
+    }
+
+    root->cost = 0;
+    detectCollisions(root->paths, root->collisionList);
+
+    pq.push(root);
+
+    while (!pq.empty())
+    {
+        CTNodeSharedPtr cur = pq.top();
+        pq.pop();
+
+        // If no collisions in the node then return solution
+        if (cur->collisionList.size() == 0)
+        {
+            return cur->paths;
+        }
+        
+        // Get first collision and create two nodes (each containing a new plan for the two agents in the collision)
+        for (Constraint &c : resolveCollision(cur->collisionList[0]))
+        {
+            // Add new constraint
+            CTNodeSharedPtr child = std::make_shared<CTNode>();
+            child->constraintList = cur->constraintList;
+            child->constraintList.push_back(c);
+            child->paths = cur->paths;
+
+            // printf("New cons = %d (%d,%d) %d @ %d\n", c.agentNum, c.location.first.x, c.location.first.y, c.isVertexConstraint, c.t);
+
+            // Replan only for the agent that has the new constraint
+            child->paths[c.agentNum].clear();
+            bool success = lowLevelSolver.solve(c.agentNum, child->constraintList, child->paths[c.agentNum]);
+
+            if (success)
+            {
+                // Update cost and find collisions
+                child->cost = computeCost(child->paths);
+                detectCollisions(child->paths, child->collisionList);
+                // for(int i = 0; i < child->collisionList.size(); i++)
+                // {
+                //     Collision c = child->collisionList[i];
+                //     printf("\tCollision = %d|%d (%d,%d) @ %d (%d)\n", c.agent1, c.agent2, c.location.first.x, c.location.first.y, c.t, c.isVertexCollision);
+                // }
+
+                // Add to search queue
+                pq.push(child);
+            }
+        }
+    }
+    return {};
+}
+
+
 int inline CBSSolver::computeCost(const std::vector<std::vector<Point2>> &paths)
 {
     int result = 0;

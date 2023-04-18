@@ -10,7 +10,6 @@ Defines connectivity of neighbourhood
  NOTE: If you change to 4, need to change
  heuristic as well.
 */
-#define NBR_CONNECTEDNESS 5
 
 ConstraintsTable AStar::buildConstraintsTable(const std::vector<Constraint> &constraints, const int agent_id, int &maxTimestep)
 {
@@ -60,6 +59,7 @@ bool AStar::isConstrained(const Point2 &currLoc, const Point2 &nextLoc, const in
 
 bool AStar::solve(const int agent_id, const std::vector<Constraint> &constraints, std::vector<Point2> &outputPath)
 {
+    int connectedness = nbrConnectedness;
     Point2 start = _problem.startLocs[agent_id];
     Point2 goal = _problem.goalLocs[agent_id];
 
@@ -105,10 +105,17 @@ bool AStar::solve(const int agent_id, const std::vector<Constraint> &constraints
             computePath(cur, outputPath);
             return true;
         }
+        if (cur->t > maxTimestep){
+            connectedness=nbrConnectedness-1;
+            cur->t = maxTimestep+1;
+        }
+        else{
+            connectedness=nbrConnectedness;
+        }
 
         cur->isClosed = true;
 
-        for (int dir = 0; dir < NBR_CONNECTEDNESS; dir++)
+        for (int dir = 0; dir < connectedness; dir++)
         {
             Point2 nbr_pos = Point2{cur->pos.x + _dx[dir], cur->pos.y + _dy[dir]};
 
@@ -228,7 +235,7 @@ void AStar::computeHeuristicMap()
             // Found shortest path; update heuristic
             _heuristicMap[id][cur->pos.x][cur->pos.y] = cur->f;
 
-            for (int dir = 0; dir < NBR_CONNECTEDNESS; dir++)
+            for (int dir = 0; dir < nbrConnectedness; dir++)
             {
                 // Don't do wait
                 if(dir==4)

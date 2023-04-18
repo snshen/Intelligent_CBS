@@ -27,7 +27,7 @@ typedef std::unordered_map<int, std::vector<Constraint>> ConstraintsTable;
 class AStar
 {
 public:
-    AStar(const MAPFInstance& mapfInstance) : _problem(mapfInstance){computeHeuristicMap();};
+    AStar(const MAPFInstance& mapfInstance) : _problem(mapfInstance), nbrConnectedness(5){computeHeuristicMap();};
     bool solve(const int agent_id, const std::vector<Constraint>& constraints, std::vector<Point2> &outputPath);
 private:
     void computePath(NodeSharedPtr goal, std::vector<Point2> &outputPath);
@@ -36,7 +36,7 @@ private:
     ConstraintsTable buildConstraintsTable(const std::vector<Constraint>& constraints, const int agent_id, int& maxTimestep);
     bool isConstrained(const Point2& currLoc, const Point2& nextLoc, const int nextTime, const ConstraintsTable& constraintsTable);
     
-
+    const int nbrConnectedness;
     const MAPFInstance& _problem; // MAPF problem
     std::vector<std::vector<std::vector<float>>> _heuristicMap; // Look up table for heuristic values for each agent
     const int _dx[9] = {1, -1, 0, 0, 0, 1, 1, -1, -1};

@@ -6,6 +6,7 @@
 #include "MAPFInstance.hpp"
 #include "SolverUtils.hpp"
 #include "AStar.hpp"
+#include <optional>
 
 class CBSSolver
 {
@@ -13,6 +14,7 @@ public:
     CBSSolver();
 
     std::vector<std::vector<Point2>> solve(MAPFInstance instance);
+    std::optional<std::vector<std::vector<Point2>>> safeSolve(MAPFInstance instance, bool saveData = false, bool useModel = false);
 
 private:
     int inline computeCost(const std::vector<std::vector<Point2>> &paths);
