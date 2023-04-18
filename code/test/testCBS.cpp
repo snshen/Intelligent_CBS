@@ -71,7 +71,7 @@ std::unordered_map<std::string, int> answers = {
 
 int main()
 {
-    std::string path = "../instances";
+    std::string path = "../../data/train_instances";
     std::string resultFile = "../outputs/result.txt";
     std::string animateFile = "../instances/exp0.txt";
     std::vector<std::string> ignoreFiles = {

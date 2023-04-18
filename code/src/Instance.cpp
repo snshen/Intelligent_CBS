@@ -1,4 +1,4 @@
-#include "GenerateInstance.hpp"
+#include "Instance.hpp"
 #include <iostream>
 #include <fstream>
 
@@ -80,61 +80,61 @@ void Instance::generateSingleInstance(string filePath, string name)
 }     
 
 
-int main(int argc, char *argv[])
-{
-    argparse::ArgumentParser program("instance generator");
+// int main(int argc, char *argv[])
+// {
+//     argparse::ArgumentParser program("instance generator");
 
-    program.add_argument("--map_height").help("height of map enviornment")
-        .default_value(16).scan<'i', int>();
+//     program.add_argument("--map_height").help("height of map enviornment")
+//         .default_value(16).scan<'i', int>();
 
-    program.add_argument("--map_width").help("width of map enviornment")
-        .default_value(16).scan<'i', int>();
+//     program.add_argument("--map_width").help("width of map enviornment")
+//         .default_value(16).scan<'i', int>();
 
-    program.add_argument("--num_agents").help("number of agents in the map enviornment")
-        .default_value(4).scan<'i', int>();
+//     program.add_argument("--num_agents").help("number of agents in the map enviornment")
+//         .default_value(4).scan<'i', int>();
     
-    program.add_argument("--obs_density").help("density of obstacles in the map enviornment")
-        .default_value(0.25f).scan<'f', float>();
+//     program.add_argument("--obs_density").help("density of obstacles in the map enviornment")
+//         .default_value(0.25f).scan<'f', float>();
     
-    program.add_argument("--num_train").help("number of train instances to generate")
-        .default_value(50).scan<'i', int>();
+//     program.add_argument("--num_train").help("number of train instances to generate")
+//         .default_value(50).scan<'i', int>();
     
-    program.add_argument("--train_path").help("path to save training data")
-        .default_value(string("../../data/train_instances/"));
+//     program.add_argument("--train_path").help("path to save training data")
+//         .default_value(string("../../data/train_instances/"));
 
-    program.add_argument("--num_test").help("number of test instances to generate")
-        .default_value(10).scan<'i', int>();
+//     program.add_argument("--num_test").help("number of test instances to generate")
+//         .default_value(10).scan<'i', int>();
 
-    program.add_argument("--test_path").help("path to save test data")
-        .default_value(string{"../../data/test_instances/"});
+//     program.add_argument("--test_path").help("path to save test data")
+//         .default_value(string{"../../data/test_instances/"});
 
-    try
-    {
-        program.parse_args(argc, argv);
-    }
-    catch (const runtime_error &err)
-    {
-        cerr << err.what() << endl;
-        cerr << program;
-        return 1;
-    }
+//     try
+//     {
+//         program.parse_args(argc, argv);
+//     }
+//     catch (const runtime_error &err)
+//     {
+//         cerr << err.what() << endl;
+//         cerr << program;
+//         return 1;
+//     }
 
-    Instance instance(program.get<int>("map_height"), program.get<int>("map_width"), program.get<float>("obs_density"), program.get<int>("num_agents"));
+//     Instance instance(program.get<int>("map_height"), program.get<int>("map_width"), program.get<float>("obs_density"), program.get<int>("num_agents"));
 
-    string trainPath = program.get<string>("train_path");
-    string testPath = program.get<string>("test_path");
+//     string trainPath = program.get<string>("train_path");
+//     string testPath = program.get<string>("test_path");
 
-    for(int i=0; i<program.get<int>("num_train"); i++)
-    {   
-        string name = to_string(i);
-        instance.generateSingleInstance(trainPath, name);
-    }
+//     for(int i=0; i<program.get<int>("num_train"); i++)
+//     {   
+//         string name = to_string(i);
+//         instance.generateSingleInstance(trainPath, name);
+//     }
 
-    for(int i=0; i<program.get<int>("num_test"); i++)
-    {
-         string name = to_string(i);
-        instance.generateSingleInstance(testPath, name);
-    }
+//     for(int i=0; i<program.get<int>("num_test"); i++)
+//     {
+//          string name = to_string(i);
+//         instance.generateSingleInstance(testPath, name);
+//     }
 
-    return 0;
-};
+//     return 0;
+// }

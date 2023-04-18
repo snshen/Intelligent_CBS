@@ -13,16 +13,6 @@ class CBSSolver
 public:
     CBSSolver();
 
-    std::vector<std::vector<Point2>> solve(MAPFInstance instance);
-    std::optional<std::vector<std::vector<Point2>>> safeSolve(MAPFInstance instance, bool saveData = false, bool useModel = false);
-
-private:
-    int inline computeCost(const std::vector<std::vector<Point2>> &paths);
-    void detectCollisions(const std::vector<std::vector<Point2>> &paths, std::vector<Collision> &collisionList);
-    inline bool detectCollision(int agent1, int agent2, const std::vector<Point2> &pathA, const std::vector<Point2> &pathB, Collision &col);
-    inline Point2 getLocation(const std::vector<Point2> &path, int t);
-    inline std::vector<Constraint> resolveCollision(const Collision &col);
-
     struct CTNode
     {
         float cost;
@@ -33,6 +23,18 @@ private:
     };
 
     typedef std::shared_ptr<CTNode> CTNodeSharedPtr;
+    
+    std::vector<std::vector<Point2>> solve(MAPFInstance instance);
+    std::optional<CTNodeSharedPtr> safeSolve(MAPFInstance instance, int& counter);
+
+
+
+private:
+    int inline computeCost(const std::vector<std::vector<Point2>> &paths);
+    void detectCollisions(const std::vector<std::vector<Point2>> &paths, std::vector<Collision> &collisionList);
+    inline bool detectCollision(int agent1, int agent2, const std::vector<Point2> &pathA, const std::vector<Point2> &pathB, Collision &col);
+    inline Point2 getLocation(const std::vector<Point2> &path, int t);
+    inline std::vector<Constraint> resolveCollision(const Collision &col);
 
     class CTNodeComparator
     {
