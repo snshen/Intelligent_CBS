@@ -7,28 +7,36 @@
 #include <argparse/argparse.hpp>
 using namespace std;
 
-void writePathsToFile(const Instance &mapInstance, vector<vector<Point2>> paths, string filePath){
+void writeDataToFile(const Instance &mapInstance, vector<vector<Point2>> paths, string filePath,
+                     int sumOfCosts, float elapsedTime, int counter, int numConstraint){
     
     int width = mapInstance.getWidth();
     int height = mapInstance.getHeight();
     int numAgents = mapInstance.getAgents();
 
     vector<char> pathMap(height * width);
-    ofstream file;
-    file.open ("filePath.txt");
+    ofstream file(filePath);
 
-    for(int i=0; i<numAgents; i++){
-        std::vector<Point2> path = paths[i];
-        fill(pathMap.begin(), pathMap.end(), 0);
-        
-        for(Point2 loc:path){
-            pathMap[loc.x*width + loc.y] = 1;
+    if (file.is_open())
+    {   
+        file << height << " " << width << "\n";
+        file << numAgents << "\n";
+
+        for(int i=0; i<numAgents; i++){
+            std::vector<Point2> path = paths[i];
+            fill(pathMap.begin(), pathMap.end(), '0');
+            
+            for(Point2 loc:path){
+                pathMap[loc.x*width + loc.y] = '1';
+            }
+            for(char cell:pathMap){
+                file << cell;
+            }
+            file << "\n";
         }
-
-        // file << path;
-    }
-    file.close();
-    
+        file << sumOfCosts << " " << elapsedTime << " " << counter << " " << numConstraint << "\n";
+        file.close();
+    } else cout << "Problem with opening file";
 }
 
 int main(int argc, char *argv[])
@@ -58,6 +66,12 @@ int main(int argc, char *argv[])
 
     program.add_argument("--test_path").help("path to save test data")
         .default_value(string{"../../data/instances/test_instances/"});
+    
+    program.add_argument("--train_label_path").help("path to save test data")
+        .default_value(string{"../../data/labels/train_labels/"});
+
+    program.add_argument("--test_label_path").help("path to save test data")
+        .default_value(string{"../../data/labels/test_labels/"});
 
     try
     {
@@ -73,12 +87,18 @@ int main(int argc, char *argv[])
     TestTimer ttimer;
     Instance instance(program.get<int>("map_height"), program.get<int>("map_width"), program.get<float>("obs_density"), program.get<int>("num_agents"));
 
-    string trainPath = program.get<string>("train_path");
+    string instancePath = program.get<string>("train_path");
+    string labelPath = program.get<string>("train_label_path");
     string testPath = program.get<string>("test_path");
 
-    for(int i=0; i<program.get<int>("num_train"); i++)
+    for(int i=0; i<program.get<int>("num_train")+program.get<int>("num_test"); i++)
     {   
-        string filePath = trainPath + to_string(i) + ".txt";
+        if (i==program.get<int>("num_train")){
+            instancePath = program.get<string>("test_path");
+            labelPath = program.get<string>("test_label_path");
+        }
+
+        string filePath = instancePath + to_string(i) + ".txt";
         instance.generateSingleInstance(filePath);
 
         // Load MAPF problem
@@ -97,29 +117,16 @@ int main(int argc, char *argv[])
             continue;
         }
         std::vector<std::vector<Point2>> paths = optNode.value()->paths;
-        writePathsToFile(instance, paths, filePath);
 
-        std::vector<Constraint> constraintList = optNode.value()->constraintList;
         double elapsedTime = ttimer.elapsed();
         int sumOfCosts=0;
         for(const auto& path : paths)
             sumOfCosts += path.size()-1;
+        std::vector<Constraint> constraintList = optNode.value()->constraintList;
+        int numConstraint = constraintList.size();
 
-        printf("SOC = %d\n", sumOfCosts);
-        printf("Elapsed time = %f ms\n", elapsedTime);
-        printf("Nodes generated = %d \n", counter);
-
-        // // Log results for specific test file
-        // if(testFile == animateFile){
-        //     saveToFile(resultFile, testFile, paths);
-        // }
+        filePath = labelPath + to_string(i) + ".txt";
+        writeDataToFile(instance, paths, filePath, sumOfCosts, elapsedTime, counter, numConstraint);
     }
-
-    for(int i=0; i<program.get<int>("num_test"); i++)
-    {
-        string filePath = trainPath + to_string(i) + ".txt";
-        instance.generateSingleInstance(filePath);
-    }
-    printf("WERE GENIUSESSSSS \n");
     return 0;
 };
