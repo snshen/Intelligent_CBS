@@ -7,8 +7,12 @@
 #include <argparse/argparse.hpp>
 using namespace std;
 
-void writePathsToFile(int height, int width, int numAgents, std::vector<std::vector<Point2>> paths){
+void writePathsToFile(const Instance &mapInstance, vector<vector<Point2>> paths, string filePath){
     
+    int width = mapInstance.getWidth();
+    int height = mapInstance.getHeight();
+    int numAgents = mapInstance.getAgents();
+
     vector<char> pathMap(height * width);
     ofstream file;
     file.open ("filePath.txt");
@@ -21,7 +25,7 @@ void writePathsToFile(int height, int width, int numAgents, std::vector<std::vec
             pathMap[loc.x*width + loc.y] = 1;
         }
 
-        file << path;
+        // file << path;
     }
     file.close();
     
@@ -32,13 +36,13 @@ int main(int argc, char *argv[])
     argparse::ArgumentParser program("instance generator");
 
     program.add_argument("--map_height").help("height of map enviornment")
-        .default_value(16).scan<'i', int>();
+        .default_value(64).scan<'i', int>();
 
     program.add_argument("--map_width").help("width of map enviornment")
-        .default_value(16).scan<'i', int>();
+        .default_value(64).scan<'i', int>();
 
     program.add_argument("--num_agents").help("number of agents in the map enviornment")
-        .default_value(4).scan<'i', int>();
+        .default_value(8).scan<'i', int>();
     
     program.add_argument("--obs_density").help("density of obstacles in the map enviornment")
         .default_value(0.25f).scan<'f', float>();
@@ -47,13 +51,13 @@ int main(int argc, char *argv[])
         .default_value(10).scan<'i', int>();
     
     program.add_argument("--train_path").help("path to save training data")
-        .default_value(string("../../data/train_instances/"));
+        .default_value(string("../../data/instances/train_instances/"));
 
     program.add_argument("--num_test").help("number of test instances to generate")
         .default_value(2).scan<'i', int>();
 
     program.add_argument("--test_path").help("path to save test data")
-        .default_value(string{"../../data/test_instances/"});
+        .default_value(string{"../../data/instances/test_instances/"});
 
     try
     {
@@ -74,9 +78,8 @@ int main(int argc, char *argv[])
 
     for(int i=0; i<program.get<int>("num_train"); i++)
     {   
-        string name = to_string(i);
-        instance.generateSingleInstance(trainPath, name);
-        string filePath = trainPath+name+".txt";
+        string filePath = trainPath + to_string(i) + ".txt";
+        instance.generateSingleInstance(filePath);
 
         // Load MAPF problem
         MAPFLoader loader;
@@ -94,7 +97,7 @@ int main(int argc, char *argv[])
             continue;
         }
         std::vector<std::vector<Point2>> paths = optNode.value()->paths;
-        vector<char> pathMap = pathMap(height, width, numAgents, paths);
+        writePathsToFile(instance, paths, filePath);
 
         std::vector<Constraint> constraintList = optNode.value()->constraintList;
         double elapsedTime = ttimer.elapsed();
@@ -114,8 +117,8 @@ int main(int argc, char *argv[])
 
     for(int i=0; i<program.get<int>("num_test"); i++)
     {
-        string name = to_string(i);
-        instance.generateSingleInstance(testPath, name);
+        string filePath = trainPath + to_string(i) + ".txt";
+        instance.generateSingleInstance(filePath);
     }
     printf("WERE GENIUSESSSSS \n");
     return 0;

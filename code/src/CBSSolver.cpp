@@ -140,6 +140,7 @@ std::optional<CBSSolver::CTNodeSharedPtr> CBSSolver::safeSolve(MAPFInstance inst
             // Replan only for the agent that has the new constraint
             child->paths[c.agentNum].clear();
             bool success = lowLevelSolver.solve(c.agentNum, child->constraintList, child->paths[c.agentNum]);
+            // loss
             counter++;
 
             if (success)

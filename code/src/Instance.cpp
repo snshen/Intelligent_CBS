@@ -73,10 +73,10 @@ void Instance::writeMapToFile(string filePath)
     } else cout << "Problem with opening file";
 }
 
-void Instance::generateSingleInstance(string filePath, string name)
+void Instance::generateSingleInstance(string filePath)
 {
     generateMap();
-    writeMapToFile(filePath+name+".txt");
+    writeMapToFile(filePath);
 }     
 
 
