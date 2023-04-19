@@ -1,5 +1,6 @@
 #include "CBSSolver.hpp"
 #include <queue>
+#include <chrono>
 
 CBSSolver::CBSSolver()
 : numNodesGenerated(0) 
@@ -8,8 +9,6 @@ CBSSolver::CBSSolver()
 
 std::vector<std::vector<Point2>> CBSSolver::solve(MAPFInstance instance)
 {
-    printf("Starting CBS Solver\n");
-
     // Initialize low level solver
     AStar lowLevelSolver(instance);
 
@@ -58,8 +57,6 @@ std::vector<std::vector<Point2>> CBSSolver::solve(MAPFInstance instance)
             child->constraintList.push_back(c);
             child->paths = cur->paths;
 
-            // printf("New cons = %d (%d,%d) %d @ %d\n", c.agentNum, c.location.first.x, c.location.first.y, c.isVertexConstraint, c.t);
-
             // Replan only for the agent that has the new constraint
             child->paths[c.agentNum].clear();
             bool success = lowLevelSolver.solve(c.agentNum, child->constraintList, child->paths[c.agentNum]);
@@ -69,14 +66,6 @@ std::vector<std::vector<Point2>> CBSSolver::solve(MAPFInstance instance)
                 // Update cost and find collisions
                 child->cost = computeCost(child->paths);
                 detectCollisions(child->paths, child->collisionList);
-
-                // for(int i = 0; i < child->collisionList.size(); i++)
-                // {
-                //     Collision c = child->collisionList[i];
-                //     printf("\tCollision = %d|%d (%d,%d) @ %d (%d)\n", c.agent1, c.agent2, c.location.first.x, c.location.first.y, c.t, c.isVertexCollision);
-                // }
-
-                // Add to search queue
                 pq.push(child);
             }
         }
@@ -87,9 +76,7 @@ std::vector<std::vector<Point2>> CBSSolver::solve(MAPFInstance instance)
 
 std::optional<CBSSolver::CTNodeSharedPtr> CBSSolver::safeSolve(MAPFInstance instance, int& counter)
 {
-    printf("Starting CBS Solver\n");
-
-    // Initialize low level solver
+    // Initialize low level solver  
     AStar lowLevelSolver(instance);
 
     // Create priority queue
@@ -116,9 +103,17 @@ std::optional<CBSSolver::CTNodeSharedPtr> CBSSolver::safeSolve(MAPFInstance inst
     detectCollisions(root->paths, root->collisionList);
 
     pq.push(root);
+    counter++;
 
+    std::chrono::time_point<std::chrono::high_resolution_clock> start = std::chrono::high_resolution_clock::now();;
     while (!pq.empty())
-    {
+    {   
+        std::chrono::duration<double, std::milli> elapsedTime = std::chrono::high_resolution_clock::now() - start;
+        if (elapsedTime.count()>300000){
+            printf("Instance timeout, took more than 5mins to solve \n");
+            return {};
+        }
+        
         CTNodeSharedPtr cur = pq.top();
         pq.pop();
 
@@ -141,8 +136,6 @@ std::optional<CBSSolver::CTNodeSharedPtr> CBSSolver::safeSolve(MAPFInstance inst
             child->paths[c.agentNum].clear();
             bool success = lowLevelSolver.solve(c.agentNum, child->constraintList, child->paths[c.agentNum]);
             // loss
-            counter++;
-
             if (success)
             {
                 // Update cost and find collisions
@@ -151,6 +144,8 @@ std::optional<CBSSolver::CTNodeSharedPtr> CBSSolver::safeSolve(MAPFInstance inst
 
                 // Add to search queue
                 pq.push(child);
+                counter++;
+
             }
         }
     }

@@ -3,10 +3,10 @@
 
 #include <memory>
 #include <tuple>
+#include <optional>
 #include "MAPFInstance.hpp"
 #include "SolverUtils.hpp"
 #include "AStar.hpp"
-#include <optional>
 
 class CBSSolver
 {

@@ -23,11 +23,11 @@ add_executable(TestAStar test/testAStar.cpp src/AStar.cpp src/MAPFLoader.cpp)
 add_executable(TestMAPFLoader test/testMAPFLoader.cpp src/MAPFLoader.cpp)
 add_executable(TestCBS test/testCBS.cpp src/MAPFLoader.cpp src/CBSSolver.cpp src/AStar.cpp)
 
-# add_executable(GenerateInstances src/Instance.cpp)
-# target_link_libraries(GenerateInstances argparse)
+add_executable(GenerateData src/GenerateData.cpp src/Instance.cpp src/MAPFLoader.cpp src/CBSSolver.cpp src/AStar.cpp)
+target_link_libraries(GenerateData argparse)
 
-add_executable(CollectData src/CollectData.cpp src/Instance.cpp src/MAPFLoader.cpp src/CBSSolver.cpp src/AStar.cpp)
-target_link_libraries(CollectData argparse)
+# add_executable(TrainModel src/TrainModel.cpp src/Instance.cpp src/MAPFLoader.cpp src/CBSSolver.cpp src/AStar.cpp)
+# target_link_libraries(TrainModel argparse)
 
 add_test(NAME TestMAPFLoader
         COMMAND TestMAPFLoader)

@@ -1,76 +1,31 @@
 #include "Instance.hpp"
 #include "MAPFLoader.hpp"
 #include "CBSSolver.hpp"
-#include "AStar.hpp"
 #include "TesterUtils.hpp"
 
 #include <argparse/argparse.hpp>
 using namespace std;
 
-void writeDataToFile(const Instance &mapInstance, vector<vector<Point2>> paths, string filePath,
-                     int sumOfCosts, float elapsedTime, int counter, int numConstraint){
-    
-    int width = mapInstance.getWidth();
-    int height = mapInstance.getHeight();
-    int numAgents = mapInstance.getAgents();
-
-    vector<char> pathMap(height * width);
-    ofstream file(filePath);
-
-    if (file.is_open())
-    {   
-        file << height << " " << width << "\n";
-        file << numAgents << "\n";
-
-        for(int i=0; i<numAgents; i++){
-            std::vector<Point2> path = paths[i];
-            fill(pathMap.begin(), pathMap.end(), '0');
-            
-            for(Point2 loc:path){
-                pathMap[loc.x*width + loc.y] = '1';
-            }
-            for(char cell:pathMap){
-                file << cell;
-            }
-            file << "\n";
-        }
-        file << sumOfCosts << " " << elapsedTime << " " << counter << " " << numConstraint << "\n";
-        file.close();
-    } else cout << "Problem with opening file";
-}
-
 int main(int argc, char *argv[])
 {
-    argparse::ArgumentParser program("instance generator");
+    argparse::ArgumentParser program("Model Training");
 
-    program.add_argument("--map_height").help("height of map enviornment")
-        .default_value(64).scan<'i', int>();
-
-    program.add_argument("--map_width").help("width of map enviornment")
-        .default_value(64).scan<'i', int>();
-
-    program.add_argument("--num_agents").help("number of agents in the map enviornment")
-        .default_value(8).scan<'i', int>();
-    
-    program.add_argument("--obs_density").help("density of obstacles in the map enviornment")
-        .default_value(0.25f).scan<'f', float>();
-    
-    program.add_argument("--num_train").help("number of train instances to generate")
+    program.add_argument("--num_train").help("number of train instances to use")
         .default_value(10).scan<'i', int>();
     
-    program.add_argument("--train_path").help("path to save training data")
+    program.add_argument("--train_path").help("path to load train instances")
         .default_value(string("../../data/instances/train_instances/"));
 
-    program.add_argument("--num_test").help("number of test instances to generate")
+    program.add_argument("--num_test").help("number of test instances to use")
         .default_value(2).scan<'i', int>();
 
-    program.add_argument("--test_path").help("path to save test data")
+    program.add_argument("--test_path").help("path to load test instances")
         .default_value(string{"../../data/instances/test_instances/"});
     
-    program.add_argument("--train_label_path").help("path to save test data")
+    program.add_argument("--train_label_path").help("path to load train data")
         .default_value(string{"../../data/labels/train_labels/"});
 
-    program.add_argument("--test_label_path").help("path to save test data")
+    program.add_argument("--test_label_path").help("path to load test data")
         .default_value(string{"../../data/labels/test_labels/"});
 
     try
