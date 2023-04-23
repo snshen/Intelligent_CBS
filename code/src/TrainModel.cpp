@@ -42,12 +42,11 @@ int main(int argc, char *argv[])
 
     string instancePath = program.get<string>("train_path");
     string labelPath = program.get<string>("train_label_path");
-    string testPath = program.get<string>("test_path");
-    int start = program.get<int>("start_train");
 
     int counter;
     bool timeout;
     int id;
+    bool train = true;
 
     TestTimer ttimer;
     DataLoader testLoader;
@@ -57,13 +56,18 @@ int main(int argc, char *argv[])
     {   
         printf("Processing sample %d\n", i);
         
-        string filePath = instancePath + to_string(id) + ".txt";
+        if (i==program.get<int>("num_train")){
+            instancePath = program.get<string>("test_path");
+            labelPath = program.get<string>("test_label_path");
+        }
+
+        string filePath = instancePath + to_string(i) + ".txt";
         MAPFInstance mapfProblem = loader.loadInstanceFromFile(filePath);
 
-        filePath = labelPath + to_string(id) + ".txt";
+        filePath = labelPath + to_string(i) + ".txt";
         testLoader.loadDataFromFile(filePath);
 
-        // Create CBS solver
+        // Create CBS solver 
         CBSSolver cbsSolver;
         counter =  0;
         ttimer.start();
@@ -85,10 +89,7 @@ int main(int argc, char *argv[])
         // writeDataToFile(instance, paths, filePath, sumOfCosts, elapsedTime, counter, numConstraint);
 
     }
-    testLoader.loadDataFromFile("/home/ubuntu/Intelligent_CBS/data/labels/test_labels/5000.txt");
-    // Load MAPF problem
-    MAPFLoader loader;
-    MAPFInstance mapfProblem = loader.loadInstanceFromFile(filePath);
+    // testLoader.loadDataFromFile("/home/ubuntu/Intelligent_CBS/data/labels/test_labels/5000.txt");
 
 
     // TestTimer ttimer;
