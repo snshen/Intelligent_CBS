@@ -4,6 +4,7 @@
 #include <memory>
 #include <tuple>
 #include <optional>
+#include <torch/torch.h>
 #include "MAPFInstance.hpp"
 #include "SolverUtils.hpp"
 #include "AStar.hpp"
@@ -25,7 +26,8 @@ public:
     typedef std::shared_ptr<CTNode> CTNodeSharedPtr;
     
     std::vector<std::vector<Point2>> solve(MAPFInstance instance);
-    std::optional<CTNodeSharedPtr> safeSolve(MAPFInstance instance, int& counter);
+    CTNodeSharedPtr safeSolve(MAPFInstance instance, int& counter, bool& unsolvable);
+    CTNodeSharedPtr trainSolve(MAPFInstance instance, int& counter, bool& timeout, std::vector<torch::Tensor> gtPaths);
 
 
 

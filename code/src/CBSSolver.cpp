@@ -74,7 +74,7 @@ std::vector<std::vector<Point2>> CBSSolver::solve(MAPFInstance instance)
     throw NoSolutionException();
 }
 
-std::optional<CBSSolver::CTNodeSharedPtr> CBSSolver::safeSolve(MAPFInstance instance, int& counter)
+CBSSolver::CTNodeSharedPtr CBSSolver::safeSolve(MAPFInstance instance, int& counter, bool& unsolvable)
 {
     // Initialize low level solver  
     AStar lowLevelSolver(instance);
@@ -106,17 +106,19 @@ std::optional<CBSSolver::CTNodeSharedPtr> CBSSolver::safeSolve(MAPFInstance inst
     counter++;
 
     std::chrono::time_point<std::chrono::high_resolution_clock> start = std::chrono::high_resolution_clock::now();;
+    std::chrono::duration<double, std::milli> elapsedTime;
     while (!pq.empty())
     {   
-        std::chrono::duration<double, std::milli> elapsedTime = std::chrono::high_resolution_clock::now() - start;
-        if (elapsedTime.count()>300000){
-            printf("Instance timeout, took more than 5mins to solve \n");
-            return {};
-        }
-        
         CTNodeSharedPtr cur = pq.top();
         pq.pop();
 
+        elapsedTime = std::chrono::high_resolution_clock::now() - start;
+        if (elapsedTime.count()>300000){
+            printf("Instance timeout, took more than 5mins to solve \n");
+            unsolvable = true;
+            return root;
+        }
+        
         // If no collisions in the node then return solution
         if (cur->collisionList.size() == 0)
         {
@@ -149,7 +151,90 @@ std::optional<CBSSolver::CTNodeSharedPtr> CBSSolver::safeSolve(MAPFInstance inst
             }
         }
     }
-    return {};
+    unsolvable = true;
+    return root;
+}
+
+
+CBSSolver::CTNodeSharedPtr CBSSolver::trainSolve(MAPFInstance instance, int& counter, bool& timeout, std::vector<torch::Tensor> gtPaths)
+{
+    // Initialize low level solver  
+    AStar lowLevelSolver(instance);
+
+    // Create priority queue
+    std::priority_queue <CTNodeSharedPtr, 
+                         std::vector<CTNodeSharedPtr>, 
+                         CTNodeComparator 
+                        > pq;
+
+    CTNodeSharedPtr root = std::make_shared<CTNode>();
+    root->paths.resize(instance.numAgents);
+    root->id = 0;
+    numNodesGenerated++;
+
+    // Create paths for all agents
+    for (int i = 0; i < instance.startLocs.size(); i++)
+    {
+        bool found = lowLevelSolver.solve(i, root->constraintList, root->paths[i]);
+        
+        if (!found)
+            return {};
+    }
+
+    root->cost = 0;
+    detectCollisions(root->paths, root->collisionList);
+
+    pq.push(root);
+    counter++;
+
+    std::chrono::time_point<std::chrono::high_resolution_clock> start = std::chrono::high_resolution_clock::now();;
+    std::chrono::duration<double, std::milli> elapsedTime;
+    while (!pq.empty())
+    {   
+        CTNodeSharedPtr cur = pq.top();
+        pq.pop();
+
+        elapsedTime = std::chrono::high_resolution_clock::now() - start;
+        if (elapsedTime.count()>300000){
+            printf("Instance timeout, took more than 5mins to solve \n");
+            timeout = true;
+            return root;
+        }
+        
+        // If no collisions in the node then return solution
+        if (cur->collisionList.size() == 0)
+        {
+            return cur;
+        }
+        
+        // Get first collision and create two nodes (each containing a new plan for the two agents in the collision)
+        for (Constraint &c : resolveCollision(cur->collisionList[0]))
+        {
+            // Add new constraint
+            CTNodeSharedPtr child = std::make_shared<CTNode>();
+            child->constraintList = cur->constraintList;
+            child->constraintList.push_back(c);
+            child->paths = cur->paths;
+
+            // Replan only for the agent that has the new constraint
+            child->paths[c.agentNum].clear();
+            bool success = lowLevelSolver.solve(c.agentNum, child->constraintList, child->paths[c.agentNum]);
+            // loss
+            if (success)
+            {
+                // Update cost and find collisions
+                child->cost = computeCost(child->paths);
+                detectCollisions(child->paths, child->collisionList);
+
+                // Add to search queue
+                pq.push(child);
+                counter++;
+
+            }
+        }
+    }
+    timeout = true;
+    return root;
 }
 
 

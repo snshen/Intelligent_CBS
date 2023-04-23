@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
         .default_value(0.25f).scan<'f', float>();
     
     program.add_argument("--num_train").help("number of train instances to generate")
-        .default_value(2000).scan<'i', int>();
+        .default_value(5000).scan<'i', int>();
     
     program.add_argument("--train_path").help("path to save training data")
         .default_value(string("../../data/instances/train_instances/"));
@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
         .default_value(0).scan<'i', int>();
 
     program.add_argument("--num_test").help("number of test instances to generate")
-        .default_value(200).scan<'i', int>();
+        .default_value(500).scan<'i', int>();
 
     program.add_argument("--test_path").help("path to save test data")
         .default_value(string{"../../data/instances/test_instances/"});
@@ -98,6 +98,7 @@ int main(int argc, char *argv[])
     int start = program.get<int>("start_train");
 
     int counter;
+    bool unsolvable;
     int id;
 
     for(int i=0; i<program.get<int>("num_train")+program.get<int>("num_test"); i++)
@@ -123,19 +124,20 @@ int main(int argc, char *argv[])
         counter =  0;
         ttimer.start();
 
-        auto optNode = cbsSolver.safeSolve(mapfProblem, counter);
-        if (!optNode.has_value()){
+        unsolvable = false;
+        auto optNode = cbsSolver.safeSolve(mapfProblem, counter, unsolvable);
+        if (unsolvable){
             i--;
             printf("generated unsolvable map, trying again \n");
             continue;
         }
-        std::vector<std::vector<Point2>> paths = optNode.value()->paths;
+        std::vector<std::vector<Point2>> paths = optNode->paths;
 
         double elapsedTime = ttimer.elapsed();
         int sumOfCosts=0;
         for(const auto& path : paths)
             sumOfCosts += path.size()-1;
-        std::vector<Constraint> constraintList = optNode.value()->constraintList;
+        std::vector<Constraint> constraintList = optNode->constraintList;
         int numConstraint = constraintList.size();
 
         filePath = labelPath + to_string(id) + ".txt";

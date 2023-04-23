@@ -2,6 +2,7 @@
 #define DATA_LOADER_H
 
 #include <string>
+#include <torch/torch.h>
 #include "MAPFInstance.hpp"
 
 class DataLoader
@@ -15,13 +16,17 @@ class DataLoader
             int counter;
             int numConstraint;
         };
+
+        Metrics metrics;
         
-        int id;
+        std::string id;
         int height;
         int width;
         int numAgents;
 
-        DataLoader loadDataFromFile(const std::string& filePath);
+        std::vector<torch::Tensor> pathTensors;
+
+        void loadDataFromFile(const std::string& filePath);
         // Make tensor of tensors, each tensor has a map corresponding to the agents
         //
 
