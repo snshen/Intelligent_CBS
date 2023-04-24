@@ -217,7 +217,6 @@ CBSSolver::CTNodeSharedPtr CBSSolver::trainSolve(MAPFInstance instance,
         std::vector<Collision> collisionList = cur->collisionList;
         //maps int of a flattened array to the index of the collision list
         std::unordered_map<int, int> collisionInds;
-        torch::Tensor collisionMap = torch::zeros({instance.rows, instance.cols});
 
         for(int i=0; i<collisionList.size(); i++){
             Collision currCollision = collisionList[0];
@@ -229,6 +228,8 @@ CBSSolver::CTNodeSharedPtr CBSSolver::trainSolve(MAPFInstance instance,
                 inputMaps[0][currCollision.location.first.y][currCollision.location.first.x] = 2;
             }
         }
+
+        torch::Tensor output = *model->forward(inputMaps);
 
         for (Constraint &c : resolveCollision(cur->collisionList[0]))
         {
@@ -243,7 +244,11 @@ CBSSolver::CTNodeSharedPtr CBSSolver::trainSolve(MAPFInstance instance,
             bool success = lowLevelSolver.solve(c.agentNum, child->constraintList, child->paths[c.agentNum]);
             // loss
             if (success)
-            {
+            {   
+                auto target = gtPaths[c.agentNum];
+                // Calculate loss
+                auto loss = torch::nn::functional::cross_entropy(output, target);
+
                 // Update cost and find collisions
                 child->cost = computeCost(child->paths);
                 detectCollisions(child->paths, child->collisionList);

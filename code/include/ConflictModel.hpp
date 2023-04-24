@@ -7,17 +7,22 @@ class ConfNetImpl : public torch::nn::Module {
     torch::Tensor forward(torch::Tensor x);
 
  private:
-    torch::nn::Sequential ConvEncoder{
+    int64_t map_width;
+    int64_t map_height;
+    int64_t fc_hidden;
+    int64_t num_output;
+
+    torch::nn::Sequential ConvLayers{
         torch::nn::Conv2d(torch::nn::Conv2dOptions(4, 64, 3).stride(1)),
-        torch::nn::BatchNorm2d(16),
+        torch::nn::BatchNorm2d(fc_hidden),
         torch::nn::ReLU(),
         torch::nn::Conv2d(torch::nn::Conv2dOptions(64, 64, 3).stride(1)),
-        torch::nn::BatchNorm2d(16),
-        torch::nn::ReLU()
+        torch::nn::BatchNorm2d(fc_hidden),
+        torch::nn::ReLU(),
+        torch::nn::Conv2d(torch::nn::Conv2dOptions(64, 1, 3).stride(1)),
+        torch::nn::BatchNorm2d(1),
+        torch::nn::Sigmoid()
     };
-
-    torch::nn::Linear fc1;
-    torch::nn::Linear fc2;
 };
 
 TORCH_MODULE(ConfNet);

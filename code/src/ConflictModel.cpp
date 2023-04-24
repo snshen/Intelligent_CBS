@@ -10,8 +10,5 @@ ConfNetImpl::ConfNetImpl(int64_t map_width, int64_t map_height, int64_t fc_hidde
 }
 
 torch::Tensor ConfNetImpl::forward(torch::Tensor x) {
-    x = ConvEncoder->forward(x);
-    x = fc1->forward(x);
-    x = fc2->forward(x);
-    return x;
+    return ConvLayers->forward(x);
 }
