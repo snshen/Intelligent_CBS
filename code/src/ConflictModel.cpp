@@ -1,4 +1,4 @@
-#include "convnet.h"
+#include "ConflictModel.hpp"
 #include <torch/torch.h>
 
 
@@ -13,5 +13,5 @@ torch::Tensor ConfNetImpl::forward(torch::Tensor x) {
     x = ConvEncoder->forward(x);
     x = fc1->forward(x);
     x = fc2->forward(x);
-    return x
+    return x;
 }

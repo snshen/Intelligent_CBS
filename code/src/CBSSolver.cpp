@@ -1,6 +1,7 @@
 #include "CBSSolver.hpp"
 #include <queue>
 #include <chrono>
+#include <bits/stdc++.h>
 
 CBSSolver::CBSSolver()
 : numNodesGenerated(0) 
@@ -156,7 +157,12 @@ CBSSolver::CTNodeSharedPtr CBSSolver::safeSolve(MAPFInstance instance, int& coun
 }
 
 
-CBSSolver::CTNodeSharedPtr CBSSolver::trainSolve(MAPFInstance instance, int& counter, bool& timeout, std::vector<torch::Tensor> gtPaths)
+CBSSolver::CTNodeSharedPtr CBSSolver::trainSolve(MAPFInstance instance, 
+                                                int& counter, 
+                                                bool& timeout, 
+                                                std::vector<torch::Tensor> gtPaths, 
+                                                ConfNet* model,
+                                                torch::Tensor inputMaps)
 {
     // Initialize low level solver  
     AStar lowLevelSolver(instance);
@@ -208,6 +214,22 @@ CBSSolver::CTNodeSharedPtr CBSSolver::trainSolve(MAPFInstance instance, int& cou
         }
         
         // Get first collision and create two nodes (each containing a new plan for the two agents in the collision)
+        std::vector<Collision> collisionList = cur->collisionList;
+        //maps int of a flattened array to the index of the collision list
+        std::unordered_map<int, int> collisionInds;
+        torch::Tensor collisionMap = torch::zeros({instance.rows, instance.cols});
+
+        for(int i=0; i<collisionList.size(); i++){
+            Collision currCollision = collisionList[0];
+            collisionInds[currCollision.location.first.y*instance.cols+currCollision.location.first.x] = i;
+            if (currCollision.location.first == currCollision.location.second){
+                inputMaps[0][currCollision.location.first.y][currCollision.location.first.x] = 1;
+            }
+            else{
+                inputMaps[0][currCollision.location.first.y][currCollision.location.first.x] = 2;
+            }
+        }
+
         for (Constraint &c : resolveCollision(cur->collisionList[0]))
         {
             // Add new constraint

@@ -8,6 +8,8 @@
 #include "MAPFInstance.hpp"
 #include "SolverUtils.hpp"
 #include "AStar.hpp"
+#include "ConflictModel.hpp"
+
 
 class CBSSolver
 {
@@ -27,7 +29,7 @@ public:
     
     std::vector<std::vector<Point2>> solve(MAPFInstance instance);
     CTNodeSharedPtr safeSolve(MAPFInstance instance, int& counter, bool& unsolvable);
-    CTNodeSharedPtr trainSolve(MAPFInstance instance, int& counter, bool& timeout, std::vector<torch::Tensor> gtPaths);
+    CTNodeSharedPtr trainSolve(MAPFInstance instance, int& counter, bool& timeout, std::vector<torch::Tensor> gtPaths, ConfNet* model, torch::Tensor inputMaps);
 
 
 

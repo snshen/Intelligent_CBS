@@ -3,7 +3,7 @@
 
 class ConfNetImpl : public torch::nn::Module {
  public:
-    explicit ConfNet(int64_t map_width = 10, int64_t map_height = 10, int64_t fc_hidden = 64, int64_t num_output = 1);
+    explicit ConfNetImpl(int64_t map_width = 10, int64_t map_height = 10, int64_t fc_hidden = 64, int64_t num_output = 1);
     torch::Tensor forward(torch::Tensor x);
 
  private:
