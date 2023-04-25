@@ -7,6 +7,15 @@
 #include <argparse/argparse.hpp>
 using namespace std;
 
+void writeMetricsToFile(trainMetrics metrics, string filePath){
+    ofstream file(filePath, std::ios_base::app);
+    if (file.is_open())
+    {   
+        file << metrics.sumOfCosts << " " << metrics.elapsedTime << " " << metrics.counter << " " << metrics.numConstraint << "\n";
+        file.close();
+    } else cout << "Problem with opening file";
+}
+
 int main(int argc, char *argv[])
 {
     argparse::ArgumentParser program("Model Training");
@@ -29,6 +38,12 @@ int main(int argc, char *argv[])
     program.add_argument("--test_label_path").help("path to load test data")
         .default_value(string{"../../data/labels/test_labels/"});
 
+    program.add_argument("--output_path").help("path to outputs")
+        .default_value(string{"../../data/outputs/train_outputs.txt"});
+    
+    program.add_argument("--lr").help("learning rate for model training")
+        .default_value(0.002f).scan<'f', float>();
+
     try
     {
         program.parse_args(argc, argv);
@@ -44,12 +59,13 @@ int main(int argc, char *argv[])
     torch::Device device(cuda_available ? torch::kCUDA : torch::kCPU);
     std::cout << (cuda_available ? "CUDA available. Training on GPU." : "Training on CPU.") << '\n';
 
-    const double learning_rate = 1e-3;
-    const double weight_decay = 1e-3;
+    const double learning_rate = program.get<float>("lr");
+    const double weight_decay = 0;
     const size_t num_epochs = 10;
 
     string instancePath = program.get<string>("train_path");
     string labelPath = program.get<string>("train_label_path");
+    string outPath = program.get<string>("output_path");
 
     int counter;
     bool timeout;
@@ -57,7 +73,7 @@ int main(int argc, char *argv[])
     bool train = true;
 
     TestTimer ttimer;
-    DataLoader testLoader;
+    DataLoader trainLoader;
     MAPFLoader loader;
 
     // Model
@@ -65,7 +81,10 @@ int main(int argc, char *argv[])
     MAPFInstance mapfProblem = loader.loadInstanceFromFile(filePath);
 
     ConfNet model(mapfProblem.cols, mapfProblem.rows, 64, 1), *modelPtr;
+    modelPtr = &model;
     model->to(device);
+    model->train();
+
 
     // Optimizer
     torch::optim::Adam optimizer(
@@ -73,111 +92,77 @@ int main(int argc, char *argv[])
 
     // Set floating point output precision
     std::cout << std::fixed << std::setprecision(4);
+
     for (size_t epoch = 0; epoch != num_epochs; ++epoch) {
         for(int i=0; i<program.get<int>("num_train")+program.get<int>("num_test"); i++)
         {   
             printf("Processing sample %d\n", i);
             
-            if (i==program.get<int>("num_train")){
-                instancePath = program.get<string>("test_path");
-                labelPath = program.get<string>("test_label_path");
-            }
+            // if (i==program.get<int>("num_train")){
+            //     instancePath = program.get<string>("test_path");
+            //     labelPath = program.get<string>("test_label_path");
+            // }
 
             filePath = instancePath + to_string(i) + ".txt";
             mapfProblem = loader.loadInstanceFromFile(filePath);
 
             //Input maps
-            torch::Tensor collisionMap = torch::zeros({mapfProblem.rows, mapfProblem.cols});
-            torch::Tensor instanceMap = torch::zeros({mapfProblem.rows, mapfProblem.cols});
-            torch::Tensor startMap = torch::zeros({mapfProblem.rows, mapfProblem.cols});
-            torch::Tensor goalMap = torch::zeros({mapfProblem.rows, mapfProblem.cols});
-
+            torch::Tensor collisionMap = torch::zeros({mapfProblem.rows, mapfProblem.cols}, device);
+            torch::Tensor instanceMap = torch::zeros({mapfProblem.rows, mapfProblem.cols}, device);
+            torch::Tensor startMap = torch::zeros({mapfProblem.rows, mapfProblem.cols}, device);
+            torch::Tensor goalMap = torch::zeros({mapfProblem.rows, mapfProblem.cols}, device);
+            
             for(int i=0; i<mapfProblem.rows; i++){
                 for(int j=0; j<mapfProblem.cols; j++){
                     instanceMap[i][j] = int(mapfProblem.map[i][j]);
                 }  
             }
+            
             for(int i=0; i<mapfProblem.numAgents; i++){
                 Point2 startLoc = mapfProblem.startLocs[i];
                 Point2 goalLoc = mapfProblem.goalLocs[i];
-                startMap[mapfProblem.startLocs[i].y][mapfProblem.startLocs[i].x] = 1;
-                goalMap[mapfProblem.goalLocs[i].y][mapfProblem.goalLocs[i].x] = 1;
+                startMap[mapfProblem.startLocs[i].x][mapfProblem.startLocs[i].y] = 1;
+                goalMap[mapfProblem.goalLocs[i].x][mapfProblem.goalLocs[i].y] = 1;
             }
+            
             torch::Tensor inputMaps = torch::stack({collisionMap, instanceMap, startMap, goalMap}, 0);
-
+            inputMaps = torch::unsqueeze(inputMaps, 0);
+            inputMaps.to(device);
+            
             filePath = labelPath + to_string(i) + ".txt";
-            testLoader.loadDataFromFile(filePath);
-
-
-
+            trainLoader.loadDataFromFile(filePath);
+            // auto paths = trainLoader.pathTensors.to(device);
+            
             // Create CBS solver 
             CBSSolver cbsSolver;
             counter =  0;
             ttimer.start();
 
+            //track metrics
+            trainMetrics metrics;
+            metrics.counter =  0;
+            metrics.runningLoss = 0;
+            metrics.numLoss = 0;
+
             timeout = false;
-            auto optNode = cbsSolver.trainSolve(mapfProblem, counter, timeout, testLoader.pathTensors, modelPtr, inputMaps);
+            optimizer.zero_grad();
+            auto optNode = cbsSolver.trainSolve(mapfProblem, timeout, trainLoader.pathTensors, modelPtr, optimizer, inputMaps, metrics, device);
+            optimizer.step();
             std::vector<std::vector<Point2>> paths = optNode->paths;
 
-            double elapsedTime = ttimer.elapsed();
-            int sumOfCosts=0;
+            metrics.elapsedTime = ttimer.elapsed();
+            metrics.sumOfCosts=0;
             for(const auto& path : paths)
-                sumOfCosts += path.size()-1;
+                metrics.sumOfCosts += path.size()-1;
             std::vector<Constraint> constraintList = optNode->constraintList;
-            int numConstraint = constraintList.size();
+            metrics.numConstraint = constraintList.size();
 
-            // filePath = labelPath + to_string(id) + ".txt";
-            // writeDataToFile(instance, paths, filePath, sumOfCosts, elapsedTime, counter, numConstraint);
-
+            float avg_loss = static_cast<float>(metrics.runningLoss)/static_cast<float>(metrics.numLoss);
+            cout<<"TRAIN RESULTS | elapsedTime: " << metrics.elapsedTime << ", counter: " << metrics.counter << ", numConstraint: " << metrics.numConstraint << ", loss: " << metrics.runningLoss/static_cast<float>(metrics.numLoss) << "\n";
+            cout<<"ORIGI RESULTS | elapsedTime: " << trainLoader.metrics.elapsedTime << ", counter: " << trainLoader.metrics.counter << ", numConstraint: " << trainLoader.metrics.numConstraint << "\n";
+            filePath = outPath;
+            writeMetricsToFile(metrics, filePath);
         }
     }
-
-    // testLoader.loadDataFromFile("/home/ubuntu/Intelligent_CBS/data/labels/test_labels/5000.txt");
-
-    // TestTimer ttimer;
-    // Instance instance(program.get<int>("map_height"), program.get<int>("map_width"), program.get<float>("obs_density"), program.get<int>("num_agents"));
-
-    // string instancePath = program.get<string>("train_path");
-    // string labelPath = program.get<string>("train_label_path");
-    // string testPath = program.get<string>("test_path");
-
-    // for(int i=0; i<program.get<int>("num_train")+program.get<int>("num_test"); i++)
-    // {   
-    //     if (i==program.get<int>("num_train")){
-    //         instancePath = program.get<string>("test_path");
-    //         labelPath = program.get<string>("test_label_path");
-    //     }
-
-    //     string filePath = instancePath + to_string(i) + ".txt";
-    //     instance.generateSingleInstance(filePath);
-
-    //     // Load MAPF problem
-    //     MAPFLoader loader;
-    //     MAPFInstance mapfProblem = loader.loadInstanceFromFile(filePath);
-
-    //     // Create CBS solver
-    //     CBSSolver cbsSolver;
-    //     int counter;
-    //     ttimer.start();
-
-    //     bool unsolvable = false;
-    //     auto optNode = cbsSolver.safeSolve(mapfProblem, counter, unsolvable);
-    //     if (unsolvable){
-    //         i--;
-    //         printf("generated unsolvable map, trying again \n");
-    //         continue;
-    //     }
-    //     std::vector<std::vector<Point2>> paths = optNode.value()->paths;
-
-    //     double elapsedTime = ttimer.elapsed();
-    //     int sumOfCosts=0;
-    //     for(const auto& path : paths)
-    //         sumOfCosts += path.size()-1;
-    //     std::vector<Constraint> constraintList = optNode.value()->constraintList;
-    //     int numConstraint = constraintList.size();
-
-    //     filePath = labelPath + to_string(i) + ".txt";
-    //     writeDataToFile(instance, paths, filePath, sumOfCosts, elapsedTime, counter, numConstraint);
-    // }
     return 0;
 };

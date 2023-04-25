@@ -10,6 +10,16 @@
 #include "AStar.hpp"
 #include "ConflictModel.hpp"
 
+struct trainMetrics
+{   
+    int numLoss;
+    float runningLoss;
+    int sumOfCosts;
+    float elapsedTime; 
+    int counter;
+    int numConstraint;
+
+};
 
 class CBSSolver
 {
@@ -29,7 +39,7 @@ public:
     
     std::vector<std::vector<Point2>> solve(MAPFInstance instance);
     CTNodeSharedPtr safeSolve(MAPFInstance instance, int& counter, bool& unsolvable);
-    CTNodeSharedPtr trainSolve(MAPFInstance instance, int& counter, bool& timeout, std::vector<torch::Tensor> gtPaths, ConfNet* model, torch::Tensor inputMaps);
+    CTNodeSharedPtr trainSolve(MAPFInstance instance, bool& timeout, std::vector<torch::Tensor> gtPaths, ConfNet* model, torch::optim::Adam& optimizer, torch::Tensor inputMaps, trainMetrics& metrics, torch::Device device);
 
 
 

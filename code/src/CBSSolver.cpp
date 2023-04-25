@@ -157,13 +157,15 @@ CBSSolver::CTNodeSharedPtr CBSSolver::safeSolve(MAPFInstance instance, int& coun
 }
 
 
-CBSSolver::CTNodeSharedPtr CBSSolver::trainSolve(MAPFInstance instance, 
-                                                int& counter, 
+CBSSolver::CTNodeSharedPtr CBSSolver::trainSolve(MAPFInstance instance,
                                                 bool& timeout, 
                                                 std::vector<torch::Tensor> gtPaths, 
-                                                ConfNet* model,
-                                                torch::Tensor inputMaps)
-{
+                                                ConfNet* modelPtr,
+                                                torch::optim::Adam& optimizer,
+                                                torch::Tensor inputMaps,
+                                                trainMetrics& metrics,
+                                                torch::Device device)
+{ 
     // Initialize low level solver  
     AStar lowLevelSolver(instance);
 
@@ -191,7 +193,7 @@ CBSSolver::CTNodeSharedPtr CBSSolver::trainSolve(MAPFInstance instance,
     detectCollisions(root->paths, root->collisionList);
 
     pq.push(root);
-    counter++;
+    metrics.counter++;
 
     std::chrono::time_point<std::chrono::high_resolution_clock> start = std::chrono::high_resolution_clock::now();;
     std::chrono::duration<double, std::milli> elapsedTime;
@@ -215,23 +217,45 @@ CBSSolver::CTNodeSharedPtr CBSSolver::trainSolve(MAPFInstance instance,
         
         // Get first collision and create two nodes (each containing a new plan for the two agents in the collision)
         std::vector<Collision> collisionList = cur->collisionList;
-        //maps int of a flattened array to the index of the collision list
+        //maps int of a flattened array of the Instance map to the index of the collision list
         std::unordered_map<int, int> collisionInds;
-
+        
         for(int i=0; i<collisionList.size(); i++){
             Collision currCollision = collisionList[0];
-            collisionInds[currCollision.location.first.y*instance.cols+currCollision.location.first.x] = i;
+            collisionInds[currCollision.location.first.x*instance.cols+currCollision.location.first.y] = i;
             if (currCollision.location.first == currCollision.location.second){
-                inputMaps[0][currCollision.location.first.y][currCollision.location.first.x] = 1;
+                inputMaps[0][0][currCollision.location.first.x][currCollision.location.first.y] = 1;
             }
             else{
-                inputMaps[0][currCollision.location.first.y][currCollision.location.first.x] = 2;
+                inputMaps[0][0][currCollision.location.first.x][currCollision.location.first.y] = 2;
+            }
+        }
+        
+        torch::Tensor output = (*modelPtr)->forward(inputMaps);
+        // std::cout << "dims " << output.sizes() << std::endl;
+        output = output[0][0];
+        
+        double running_loss = 0.0;
+        int bestInd;
+        float bestVal = 0;
+        
+        for(auto ind=collisionInds.begin(); ind!=collisionInds.end(); ind++){
+            int x=ind->first%instance.cols;
+            int y=ind->first/instance.cols;
+            float currVal = output[y][x].item<float>();
+            if(currVal>=bestVal){
+                bestVal = currVal;
+                bestInd = ind->second;
             }
         }
 
-        torch::Tensor output = *model->forward(inputMaps);
-
-        for (Constraint &c : resolveCollision(cur->collisionList[0]))
+        Collision bestCollision = collisionList[bestInd];
+        
+        bool backprop = true;
+        bool second = false;
+        torch::Tensor outputPred = torch::zeros({2, output.sizes()[0], output.sizes()[1]});
+        torch::Tensor outputLabel= torch::zeros({2, output.sizes()[0], output.sizes()[1]});
+        for (Constraint &c : resolveCollision(bestCollision))
         {
             // Add new constraint
             CTNodeSharedPtr child = std::make_shared<CTNode>();
@@ -245,9 +269,22 @@ CBSSolver::CTNodeSharedPtr CBSSolver::trainSolve(MAPFInstance instance,
             // loss
             if (success)
             {   
-                auto target = gtPaths[c.agentNum];
-                // Calculate loss
-                auto loss = torch::nn::functional::cross_entropy(output, target);
+                torch::Tensor label = gtPaths[c.agentNum].to(device);
+                std::vector<Point2> path = child->paths[c.agentNum];
+
+                if(!second){
+                    outputLabel[0] = label;
+                    for(Point2 loc:path){
+                        outputPred[0][loc.x][loc.y] = 1;
+                    }
+                } 
+                else{
+                    outputLabel[1] = label;
+                    for(Point2 loc:path){
+                        outputPred[1][loc.x][loc.y] = 1;
+                    }
+                }
+                second = true;
 
                 // Update cost and find collisions
                 child->cost = computeCost(child->paths);
@@ -255,15 +292,22 @@ CBSSolver::CTNodeSharedPtr CBSSolver::trainSolve(MAPFInstance instance,
 
                 // Add to search queue
                 pq.push(child);
-                counter++;
+                metrics.counter++;
 
-            }
+            }else backprop = false; 
+        }
+        if(backprop){
+            // outputPred.to(device);
+            // outputLabel.to(device);
+            torch::Tensor loss = torch::nn::functional::mse_loss(outputPred, outputLabel).requires_grad_(true);
+            metrics.runningLoss += loss.item<double>();
+            metrics.numLoss++;
+            loss.backward();
         }
     }
     timeout = true;
     return root;
 }
-
 
 int inline CBSSolver::computeCost(const std::vector<std::vector<Point2>> &paths)
 {

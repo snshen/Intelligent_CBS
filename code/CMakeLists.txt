@@ -28,8 +28,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 add_library(cbsSolver src/CBSSolver.cpp src/AStar.cpp src/ConflictModel.cpp)
 target_link_libraries(cbsSolver "${TORCH_LIBRARIES}")
 
-add_executable(CBS src/main.cpp src/MAPFLoader.cpp)
-target_link_libraries(CBS cbsSolver)
+# add_executable(CBS src/main.cpp src/MAPFLoader.cpp)
+# target_link_libraries(CBS cbsSolver)
 
 add_executable(GenerateData src/GenerateData.cpp src/Instance.cpp src/MAPFLoader.cpp)
 target_link_libraries(GenerateData argparse)
