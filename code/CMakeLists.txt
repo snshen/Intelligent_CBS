@@ -40,6 +40,11 @@ target_link_libraries(TrainModel argparse)
 target_link_libraries(TrainModel cbsSolver)
 target_link_libraries(TrainModel "${TORCH_LIBRARIES}")
 
+add_executable(EvalModel src/EvalModel.cpp src/Instance.cpp src/DataLoader.cpp src/MAPFLoader.cpp src/ConflictModel.cpp)
+target_link_libraries(EvalModel argparse)
+target_link_libraries(EvalModel cbsSolver)
+target_link_libraries(EvalModel "${TORCH_LIBRARIES}")
+
 add_test(NAME TestMAPFLoader
         COMMAND TestMAPFLoader)
 add_test(NAME TestAStar

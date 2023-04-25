@@ -3,6 +3,7 @@
 #include "CBSSolver.hpp"
 #include "TesterUtils.hpp"
 #include "DataLoader.hpp"
+// #include <gtest/gtest.hpp>
 
 #include <argparse/argparse.hpp>
 using namespace std;
@@ -16,7 +17,7 @@ void writeMetricsToFile(trainMetrics metrics, string filePath){
     } else cout << "Problem with opening file";
 }
 
-trainMetrics runOneInstance(MAPFInstance& mapfProblem, DataLoader& trainLoader, int& counter, TestTimer& ttimer, torch::optim::Adam& optimizer, ConfNet* modelPtr, torch::Device device){
+trainMetrics runOneInstance(MAPFInstance& mapfProblem, DataLoader& trainLoader, int& counter, TestTimer& ttimer, torch::optim::Adam& optimizer, ConfNet* modelPtr, torch::Device device, bool& timeout){
 
     //Input maps
     torch::Tensor collisionMap = torch::zeros({mapfProblem.rows, mapfProblem.cols}, device);
@@ -52,11 +53,8 @@ trainMetrics runOneInstance(MAPFInstance& mapfProblem, DataLoader& trainLoader, 
     metrics.runningLoss = 0;
     metrics.numLoss = 0;
 
-    bool timeout = false;
-    optimizer.zero_grad();
+    auto optNode = cbsSolver.testSolve(mapfProblem, timeout, modelPtr, inputMaps, metrics, device);
     
-    auto optNode = cbsSolver.trainSolve(mapfProblem, timeout, trainLoader.constraintTensor, modelPtr, optimizer, inputMaps, metrics, device);
-    optimizer.step();
     std::vector<std::vector<Point2>> paths = optNode->paths;
 
     metrics.elapsedTime = ttimer.elapsed();
@@ -74,7 +72,7 @@ trainMetrics runOneInstance(MAPFInstance& mapfProblem, DataLoader& trainLoader, 
 
 int main(int argc, char *argv[])
 {
-    argparse::ArgumentParser program("Model Training");
+    argparse::ArgumentParser program("Model Evaluation");
 
     program.add_argument("--num_train").help("number of train instances to use")
         .default_value(5000).scan<'i', int>();
@@ -98,7 +96,7 @@ int main(int argc, char *argv[])
         .default_value(string{"../../data/outputs/train_outputs.txt"});
     
     program.add_argument("--model_path").help("path to models")
-        .default_value(string{"../../data/models/"});
+        .default_value(string{"../../data/models/latest.pt"});
     
     program.add_argument("--lr").help("learning rate for model training")
         .default_value(0.003f).scan<'f', float>();
@@ -127,8 +125,6 @@ int main(int argc, char *argv[])
 
     string instancePath = program.get<string>("train_path");
     string labelPath = program.get<string>("train_label_path");
-    string t_instancePath = program.get<string>("test_path");
-    string t_labelPath = program.get<string>("test_label_path");
     string outPath = program.get<string>("output_path");
     string modelPath = program.get<string>("model_path");
 
@@ -138,81 +134,75 @@ int main(int argc, char *argv[])
     bool train = true;
 
     TestTimer ttimer;
-    DataLoader trainLoader;
     DataLoader testLoader;
     MAPFLoader loader;
     float bestLoss = 100;
-    std::vector<float> val_losses;
 
     // Model
     string filePath = instancePath + to_string(0) + ".txt";
     MAPFInstance mapfProblem = loader.loadInstanceFromFile(filePath);
 
-    ConfNet model(mapfProblem.cols, mapfProblem.rows, 64, 1), *modelPtr;
-    modelPtr = &model;
+    ConfNet model(mapfProblem.cols, mapfProblem.rows, 64, 1); //, *modelPtr;
+    torch::load(model, modelPath);
+
     model->to(device);
-    model->train();
 
     // Optimizer
     torch::optim::Adam optimizer(
-        model->parameters(), torch::optim::AdamOptions(learning_rate).weight_decay(weight_decay));
+        model->parameters(), torch::optim::AdamOptions(0).weight_decay(weight_decay));
+
+    model->eval();
 
     // Set floating point output precision
     std::cout << std::fixed << std::setprecision(4);
+    
+    std::vector<float> inte_losses;
+    std::vector<float> inte_times;
+    std::vector<float> inte_counts;
+    std::vector<float> inte_constraints;
+    
+    std::vector<float> orig_times;
+    std::vector<float> orig_counts;
+    std::vector<float> orig_constraints;
 
-    for (size_t epoch = 0; epoch != num_epochs; ++epoch) {
-        cout<<"---------------------EPOCH "<<epoch<<"---------------------\n";
-        for(int i=0; i<program.get<int>("num_train"); i++)
-        {   
-            printf("Processing sample %d\n", i);
+    for(int i=0; i<program.get<int>("num_test"); i++)
+    {   
+        printf("Processing sample %d\n", i);
+        
+        int id = i;
+        filePath = instancePath + to_string(id) + ".txt";
+        mapfProblem = loader.loadInstanceFromFile(filePath);
+        
+        filePath = labelPath + to_string(id) + ".txt";
+        testLoader.loadDataFromFile(filePath);
 
-            filePath = instancePath + to_string(i) + ".txt";
-            mapfProblem = loader.loadInstanceFromFile(filePath);
-            
-            filePath = labelPath + to_string(i) + ".txt";
-            trainLoader.loadDataFromFile(filePath);
+        bool timeout = false;
+        trainMetrics metrics = runOneInstance(mapfProblem, testLoader, counter, ttimer, optimizer, &model, device, timeout);
+        cout<<"TRAIN RESULTS | elapsedTime: " << metrics.elapsedTime << ", counter: " << metrics.counter << ", numConstraint: " << metrics.numConstraint << ", loss: " <<  metrics.avgLoss << "\n";
+        cout<<"ORIGI RESULTS | elapsedTime: " << testLoader.metrics.elapsedTime << ", counter: " << testLoader.metrics.counter << ", numConstraint: " << testLoader.metrics.numConstraint << "\n";
+        
+        inte_losses.push_back(metrics.avgLoss);
+        inte_times.push_back(metrics.elapsedTime);
+        inte_counts.push_back(metrics.counter);
+        inte_constraints.push_back(metrics.numConstraint);
 
-            trainMetrics metrics = runOneInstance(mapfProblem, trainLoader, counter, ttimer, optimizer, modelPtr, device);
-            cout<<"TRAIN RESULTS | elapsedTime: " << metrics.elapsedTime << ", counter: " << metrics.counter << ", numConstraint: " << metrics.numConstraint << ", loss: " <<  metrics.avgLoss << "\n";
-            cout<<"ORIGI RESULTS | elapsedTime: " << trainLoader.metrics.elapsedTime << ", counter: " << trainLoader.metrics.counter << ", numConstraint: " << trainLoader.metrics.numConstraint << "\n";
-            
-            filePath = outPath;
-            writeMetricsToFile(metrics, filePath);
-            
-            if(i%program.get<int>("eval_freq")==0){
-                torch::save(model, modelPath+"latest_0.pt");
-
-                // cout<<"---------------------VALIDATION START---------------------\n";
-
-                // model->eval();
-
-                // for (int j=program.get<int>("num_train"); j<program.get<int>("num_train")+program.get<int>("num_test"); j++){
-                //     filePath = t_instancePath + to_string(j) + ".txt";
-                //     mapfProblem = loader.loadInstanceFromFile(filePath);
-                    
-                //     filePath = t_labelPath + to_string(j) + ".txt";
-                //     testLoader.loadDataFromFile(filePath);
-
-                //     trainMetrics metrics = runOneInstance(mapfProblem, testLoader, counter, ttimer, optimizer, modelPtr, device);
-                //     cout<<" loss: " << metrics.avgLoss<< "\n";
-                //     val_losses.push_back(metrics.avgLoss);
-                // }
-
-                // float avg_loss = std::accumulate(val_losses.begin(), val_losses.end(), 0.0) / val_losses.size();
-
-                // cout<<" LOSS: " << avg_loss<< "\n";
-
-                // if(avg_loss<bestLoss){
-                //     torch::save(model, modelPath+"best.pt");
-                // }
-
-                // torch::save(model, modelPath+"latest.pt");
-                // std::vector<float> val_losses;
-                // val_losses.clear();
-                // cout<<"---------------------VALIDATION END---------------------\n";
-                // model->train();
-            }
-        }
+        orig_times.push_back(testLoader.metrics.elapsedTime);
+        orig_counts.push_back(testLoader.metrics.counter);
+        orig_constraints.push_back(testLoader.metrics.numConstraint);
+        
     }
+    float inte_loss = std::accumulate(inte_losses.begin(), inte_losses.end(), 0.0) / inte_losses.size();
+    float inte_time = std::accumulate(inte_times.begin(), inte_times.end(), 0.0) / inte_times.size();
+    float inte_count = std::accumulate(inte_counts.begin(), inte_counts.end(), 0.0) / inte_counts.size();
+    float inte_constraint = std::accumulate(inte_constraints.begin(), inte_constraints.end(), 0.0) / inte_constraints.size();
+
+    float orig_time = std::accumulate(orig_times.begin(), orig_times.end(), 0.0) / orig_times.size();
+    float orig_count = std::accumulate(orig_counts.begin(), orig_counts.end(), 0.0) / orig_counts.size();
+    float orig_constraint = std::accumulate(orig_constraints.begin(), orig_constraints.end(), 0.0) / orig_constraints.size();
+
+    cout<<"---------------------FINAL RESULTS---------------------\n";
+    cout<<"INTELLIGENT | elapsedTime: " << inte_time << ", counter: " << inte_count << ", numConstraint: " << inte_constraint << ", loss: " << inte_loss << "\n";
+    cout<<"ORIGINAL | elapsedTime: " << orig_time << ", counter: " << orig_count << ", numConstraint: " << orig_constraint << "\n";
+    
     return 0;
 };

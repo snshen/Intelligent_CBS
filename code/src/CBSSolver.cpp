@@ -212,53 +212,57 @@ CBSSolver::CTNodeSharedPtr CBSSolver::trainSolve(MAPFInstance instance,
         }
         
         // If no collisions in the node then return solution
+        Collision bestCollision;
         if (cur->collisionList.size() == 0)
         {
             return cur;
         }
-        
-        // Get first collision and create two nodes (each containing a new plan for the two agents in the collision)
-        std::vector<Collision> collisionList = cur->collisionList;
-        //maps int of a flattened array of the Instance map to the index of the collision list
-        std::unordered_map<int, int> collisionInds;
-        
-        for(int i=0; i<collisionList.size(); i++){
-            Collision currCollision = collisionList[0];
-            collisionInds[currCollision.location.first.x*instance.cols+currCollision.location.first.y] = i;
-            if (currCollision.location.first == currCollision.location.second){
-                inputMaps[0][0][currCollision.location.first.x][currCollision.location.first.y] = 1;
-            }
-            else{
-                inputMaps[0][0][currCollision.location.first.x][currCollision.location.first.y] = 2;
-            }
+        else if (cur->collisionList.size() == 1)
+        {
+            bestCollision = cur->collisionList[0];
         }
-        torch::Tensor output = (*modelPtr)->forward(inputMaps);
-        // std::cout << "dims " << output.sizes() << std::endl;
-        
-        output = output[0][0];
-        constraintTensor = constraintTensor.to(device);
-        
-        torch::Tensor loss = torch::nn::functional::mse_loss(constraintTensor, output).requires_grad_(true);
-        metrics.runningLoss += loss.item<double>();
-        metrics.numLoss++;
-        loss.backward();
-        
-        double running_loss = 0.0;
-        int bestInd;
-        float bestVal = 0;
-        
-        for(auto ind=collisionInds.begin(); ind!=collisionInds.end(); ind++){
-            int x=ind->first%instance.cols;
-            int y=ind->first/instance.cols;
-            float currVal = output[y][x].item<float>();
-            if(currVal>=bestVal){
-                bestVal = currVal;
-                bestInd = ind->second;
+        else{
+            // Get first collision and create two nodes (each containing a new plan for the two agents in the collision)
+            std::vector<Collision> collisionList = cur->collisionList;
+            //maps int of a flattened array of the Instance map to the index of the collision list
+            std::unordered_map<int, int> collisionInds;
+            
+            for(int i=0; i<collisionList.size(); i++){
+                Collision currCollision = collisionList[i];
+                collisionInds[currCollision.location.first.x*instance.cols+currCollision.location.first.y] = i;
+                if (currCollision.location.first == currCollision.location.second){
+                    inputMaps[0][0][currCollision.location.first.x][currCollision.location.first.y] = 1;
+                }
+                else{
+                    inputMaps[0][0][currCollision.location.first.x][currCollision.location.first.y] = 2;
+                }
             }
+            torch::Tensor output = (*modelPtr)->forward(inputMaps);
+            
+            output = output[0][0];
+            constraintTensor = constraintTensor.to(device);
+            
+            torch::Tensor loss = torch::nn::functional::mse_loss(constraintTensor, output).requires_grad_(true);
+            metrics.runningLoss += loss.item<double>();
+            metrics.numLoss++;
+            loss.backward();
+            
+            double running_loss = 0.0;
+            int bestInd;
+            float bestVal = 0;
+
+            for(auto ind=collisionInds.begin(); ind!=collisionInds.end(); ind++){
+                int x=ind->first%instance.cols;
+                int y=ind->first/instance.cols;
+                float currVal = output[y][x].item<float>();
+                if(currVal>=bestVal){
+                    bestVal = currVal;
+                    bestInd = ind->second;
+                }
+            }
+            bestCollision = collisionList[bestInd];
         }
 
-        Collision bestCollision = collisionList[bestInd];
-        
         for (Constraint &c : resolveCollision(bestCollision))
         {
             // Add new constraint
@@ -287,6 +291,129 @@ CBSSolver::CTNodeSharedPtr CBSSolver::trainSolve(MAPFInstance instance,
     timeout = true;
     return root;
 }
+
+CBSSolver::CTNodeSharedPtr CBSSolver::testSolve(MAPFInstance instance,
+                                                bool& timeout, 
+                                                ConfNet* modelPtr,
+                                                torch::Tensor inputMaps,
+                                                trainMetrics& metrics,
+                                                torch::Device device)
+{ 
+    // Initialize low level solver  
+    AStar lowLevelSolver(instance);
+
+    // Create priority queue
+    std::priority_queue <CTNodeSharedPtr, 
+                         std::vector<CTNodeSharedPtr>, 
+                         CTNodeComparator 
+                        > pq;
+
+    CTNodeSharedPtr root = std::make_shared<CTNode>();
+    root->paths.resize(instance.numAgents);
+    root->id = 0;
+    numNodesGenerated++;
+
+    // Create paths for all agents
+    for (int i = 0; i < instance.startLocs.size(); i++)
+    {
+        bool found = lowLevelSolver.solve(i, root->constraintList, root->paths[i]);
+        
+        if (!found)
+            return {};
+    }
+
+    root->cost = 0;
+    detectCollisions(root->paths, root->collisionList);
+
+    pq.push(root);
+    metrics.counter++;
+
+    std::chrono::time_point<std::chrono::high_resolution_clock> start = std::chrono::high_resolution_clock::now();;
+    std::chrono::duration<double, std::milli> elapsedTime;
+    while (!pq.empty())
+    {   
+        CTNodeSharedPtr cur = pq.top();
+        pq.pop();
+
+        elapsedTime = std::chrono::high_resolution_clock::now() - start;
+        if (elapsedTime.count()>300000){
+            printf("Instance timeout, took more than 5mins to solve \n");
+            timeout = true;
+            return root;
+        }
+        
+        // If no collisions in the node then return solution
+        Collision bestCollision;
+        if (cur->collisionList.size() == 0)
+        {
+            return cur;
+        }
+        else if (cur->collisionList.size() == 1)
+        {
+            bestCollision = cur->collisionList[0];
+        }
+        else{
+            // Get first collision and create two nodes (each containing a new plan for the two agents in the collision)
+            std::vector<Collision> collisionList = cur->collisionList;
+            //maps int of a flattened array of the Instance map to the index of the collision list
+            std::unordered_map<int, int> collisionInds;
+            
+            for(int i=0; i<collisionList.size(); i++){
+                Collision currCollision = collisionList[i];
+                collisionInds[currCollision.location.first.x*instance.cols+currCollision.location.first.y] = i;
+                if (currCollision.location.first == currCollision.location.second){
+                    inputMaps[0][0][currCollision.location.first.x][currCollision.location.first.y] = 1;
+                }
+                else{
+                    inputMaps[0][0][currCollision.location.first.x][currCollision.location.first.y] = 2;
+                }
+            }
+            torch::Tensor output = (*modelPtr)->forward(inputMaps);
+            output = output[0][0];
+            
+            int bestInd;
+            float bestVal = 0;
+            for(auto ind=collisionInds.begin(); ind!=collisionInds.end(); ind++){
+                int x=ind->first%instance.cols;
+                int y=ind->first/instance.cols;
+                float currVal = output[y][x].item<float>();
+                if(currVal>=bestVal){
+                    bestVal = currVal;
+                    bestInd = ind->second;
+                }
+            }
+            bestCollision = collisionList[bestInd];
+        }
+
+        for (Constraint &c : resolveCollision(bestCollision))
+        {
+            // Add new constraint
+            CTNodeSharedPtr child = std::make_shared<CTNode>();
+            child->constraintList = cur->constraintList;
+            child->constraintList.push_back(c);
+            child->paths = cur->paths;
+
+            // Replan only for the agent that has the new constraint
+            child->paths[c.agentNum].clear();
+            bool success = lowLevelSolver.solve(c.agentNum, child->constraintList, child->paths[c.agentNum]);
+            // loss
+            if (success)
+            {   
+                // Update cost and find collisions
+                child->cost = computeCost(child->paths);
+                detectCollisions(child->paths, child->collisionList);
+
+                // Add to search queue
+                pq.push(child);
+                metrics.counter++;
+
+            }
+        }
+    }
+    timeout = true;
+    return root;
+}
+
 
 int inline CBSSolver::computeCost(const std::vector<std::vector<Point2>> &paths)
 {
