@@ -16,23 +16,17 @@ void DataLoader::loadDataFromFile(const std::string& filePath)
     {
         // get height and width11
         fs >> height >> width;
-        // get num of agents
-        fs >> numAgents;
 
         //get paths 
         std::string line;
-        for (int i=0; i<numAgents; i++) 
-        {   
-            fs>>line;
-            torch::Tensor t = torch::zeros({height, width});
-            std::getline(fs, line);
-            
-            for (int i=0; i<height; i++){
-                for (int j=0; j<width; j++){
-                    t[i][j] = line[i * width + j] - '0';
-                }
+        fs>>line;
+        constraintTensor = torch::zeros({height, width});
+        std::getline(fs, line);
+        
+        for (int i=0; i<height; i++){
+            for (int j=0; j<width; j++){
+                constraintTensor[i][j] = line[i * width + j] - '0';
             }
-            pathTensors.push_back(t);
         }
         
         fs >> metrics.sumOfCosts >> metrics.elapsedTime >> metrics.counter >> metrics.numConstraint;

@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
         .default_value(string{"../../data/outputs/train_outputs.txt"});
     
     program.add_argument("--lr").help("learning rate for model training")
-        .default_value(0.002f).scan<'f', float>();
+        .default_value(0.003f).scan<'f', float>();
 
     try
     {
@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
     std::cout << (cuda_available ? "CUDA available. Training on GPU." : "Training on CPU.") << '\n';
 
     const double learning_rate = program.get<float>("lr");
-    const double weight_decay = 0;
+    const double weight_decay = 1e-3;
     const size_t num_epochs = 10;
 
     string instancePath = program.get<string>("train_path");
@@ -105,6 +105,9 @@ int main(int argc, char *argv[])
 
             filePath = instancePath + to_string(i) + ".txt";
             mapfProblem = loader.loadInstanceFromFile(filePath);
+            
+            filePath = labelPath + to_string(i) + ".txt";
+            trainLoader.loadDataFromFile(filePath);
 
             //Input maps
             torch::Tensor collisionMap = torch::zeros({mapfProblem.rows, mapfProblem.cols}, device);
@@ -129,10 +132,6 @@ int main(int argc, char *argv[])
             inputMaps = torch::unsqueeze(inputMaps, 0);
             inputMaps.to(device);
             
-            filePath = labelPath + to_string(i) + ".txt";
-            trainLoader.loadDataFromFile(filePath);
-            // auto paths = trainLoader.pathTensors.to(device);
-            
             // Create CBS solver 
             CBSSolver cbsSolver;
             counter =  0;
@@ -146,7 +145,8 @@ int main(int argc, char *argv[])
 
             timeout = false;
             optimizer.zero_grad();
-            auto optNode = cbsSolver.trainSolve(mapfProblem, timeout, trainLoader.pathTensors, modelPtr, optimizer, inputMaps, metrics, device);
+            
+            auto optNode = cbsSolver.trainSolve(mapfProblem, timeout, trainLoader.constraintTensor, modelPtr, optimizer, inputMaps, metrics, device);
             optimizer.step();
             std::vector<std::vector<Point2>> paths = optNode->paths;
 

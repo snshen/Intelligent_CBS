@@ -6,33 +6,31 @@
 #include <argparse/argparse.hpp>
 using namespace std;
 
-void writeDataToFile(const Instance &mapInstance, vector<vector<Point2>> paths, string filePath,
-                     int sumOfCosts, float elapsedTime, int counter, int numConstraint){
+void writeDataToFile(const Instance &mapInstance, std::vector<Constraint> constraintList, string filePath,
+                     int sumOfCosts, float elapsedTime, int counter){
     
     int width = mapInstance.getWidth();
     int height = mapInstance.getHeight();
     int numAgents = mapInstance.getAgents();
+    int numConstraint = constraintList.size();
 
-    vector<char> pathMap(height * width);
+    vector<char> constraintMap(height * width);
     ofstream file(filePath);
 
     if (file.is_open())
     {   
         file << height << " " << width << "\n";
-        file << numAgents << "\n";
-
-        for(int i=0; i<numAgents; i++){
-            std::vector<Point2> path = paths[i];
-            fill(pathMap.begin(), pathMap.end(), '0');
-            
-            for(Point2 loc:path){
-                pathMap[loc.x*width + loc.y] = '1';
-            }
-            for(char cell:pathMap){
-                file << cell;
-            }
-            file << "\n";
+        
+        fill(constraintMap.begin(), constraintMap.end(), '0');
+        
+        for(Constraint constraint:constraintList){
+            constraintMap[constraint.location.first.x*width + constraint.location.first.y] = '1';
         }
+        for(char cell:constraintMap){
+            file << cell;
+        }
+        file << "\n";
+
         file << sumOfCosts << " " << elapsedTime << " " << counter << " " << numConstraint << "\n";
         file.close();
     } else cout << "Problem with opening file";
@@ -131,17 +129,18 @@ int main(int argc, char *argv[])
             printf("generated unsolvable map, trying again \n");
             continue;
         }
+        
         std::vector<std::vector<Point2>> paths = optNode->paths;
-
+        
         double elapsedTime = ttimer.elapsed();
         int sumOfCosts=0;
         for(const auto& path : paths)
             sumOfCosts += path.size()-1;
+
         std::vector<Constraint> constraintList = optNode->constraintList;
-        int numConstraint = constraintList.size();
 
         filePath = labelPath + to_string(id) + ".txt";
-        writeDataToFile(instance, paths, filePath, sumOfCosts, elapsedTime, counter, numConstraint);
+        writeDataToFile(instance, constraintList, filePath, sumOfCosts, elapsedTime, counter);
     }
     return 0;
 };

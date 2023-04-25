@@ -96,8 +96,10 @@ CBSSolver::CTNodeSharedPtr CBSSolver::safeSolve(MAPFInstance instance, int& coun
     {
         bool found = lowLevelSolver.solve(i, root->constraintList, root->paths[i]);
         
-        if (!found)
-            return {};
+        if (!found){
+            unsolvable = true;
+            return root;
+        }   
     }
 
     root->cost = 0;
@@ -159,7 +161,7 @@ CBSSolver::CTNodeSharedPtr CBSSolver::safeSolve(MAPFInstance instance, int& coun
 
 CBSSolver::CTNodeSharedPtr CBSSolver::trainSolve(MAPFInstance instance,
                                                 bool& timeout, 
-                                                std::vector<torch::Tensor> gtPaths, 
+                                                torch::Tensor constraintTensor, 
                                                 ConfNet* modelPtr,
                                                 torch::optim::Adam& optimizer,
                                                 torch::Tensor inputMaps,
@@ -230,10 +232,16 @@ CBSSolver::CTNodeSharedPtr CBSSolver::trainSolve(MAPFInstance instance,
                 inputMaps[0][0][currCollision.location.first.x][currCollision.location.first.y] = 2;
             }
         }
-        
         torch::Tensor output = (*modelPtr)->forward(inputMaps);
         // std::cout << "dims " << output.sizes() << std::endl;
+        
         output = output[0][0];
+        constraintTensor = constraintTensor.to(device);
+        
+        torch::Tensor loss = torch::nn::functional::mse_loss(constraintTensor, output).requires_grad_(true);
+        metrics.runningLoss += loss.item<double>();
+        metrics.numLoss++;
+        loss.backward();
         
         double running_loss = 0.0;
         int bestInd;
@@ -251,10 +259,6 @@ CBSSolver::CTNodeSharedPtr CBSSolver::trainSolve(MAPFInstance instance,
 
         Collision bestCollision = collisionList[bestInd];
         
-        bool backprop = true;
-        bool second = false;
-        torch::Tensor outputPred = torch::zeros({2, output.sizes()[0], output.sizes()[1]});
-        torch::Tensor outputLabel= torch::zeros({2, output.sizes()[0], output.sizes()[1]});
         for (Constraint &c : resolveCollision(bestCollision))
         {
             // Add new constraint
@@ -269,23 +273,6 @@ CBSSolver::CTNodeSharedPtr CBSSolver::trainSolve(MAPFInstance instance,
             // loss
             if (success)
             {   
-                torch::Tensor label = gtPaths[c.agentNum].to(device);
-                std::vector<Point2> path = child->paths[c.agentNum];
-
-                if(!second){
-                    outputLabel[0] = label;
-                    for(Point2 loc:path){
-                        outputPred[0][loc.x][loc.y] = 1;
-                    }
-                } 
-                else{
-                    outputLabel[1] = label;
-                    for(Point2 loc:path){
-                        outputPred[1][loc.x][loc.y] = 1;
-                    }
-                }
-                second = true;
-
                 // Update cost and find collisions
                 child->cost = computeCost(child->paths);
                 detectCollisions(child->paths, child->collisionList);
@@ -294,15 +281,7 @@ CBSSolver::CTNodeSharedPtr CBSSolver::trainSolve(MAPFInstance instance,
                 pq.push(child);
                 metrics.counter++;
 
-            }else backprop = false; 
-        }
-        if(backprop){
-            // outputPred.to(device);
-            // outputLabel.to(device);
-            torch::Tensor loss = torch::nn::functional::mse_loss(outputPred, outputLabel).requires_grad_(true);
-            metrics.runningLoss += loss.item<double>();
-            metrics.numLoss++;
-            loss.backward();
+            }
         }
     }
     timeout = true;

@@ -39,7 +39,7 @@ public:
     
     std::vector<std::vector<Point2>> solve(MAPFInstance instance);
     CTNodeSharedPtr safeSolve(MAPFInstance instance, int& counter, bool& unsolvable);
-    CTNodeSharedPtr trainSolve(MAPFInstance instance, bool& timeout, std::vector<torch::Tensor> gtPaths, ConfNet* model, torch::optim::Adam& optimizer, torch::Tensor inputMaps, trainMetrics& metrics, torch::Device device);
+    CTNodeSharedPtr trainSolve(MAPFInstance instance, bool& timeout, torch::Tensor constraintTensor, ConfNet* model, torch::optim::Adam& optimizer, torch::Tensor inputMaps, trainMetrics& metrics, torch::Device device);
 
 
 

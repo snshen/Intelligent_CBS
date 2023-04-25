@@ -22,19 +22,11 @@ class DataLoader
         std::string id;
         int height;
         int width;
-        int numAgents;
 
-        std::vector<torch::Tensor> pathTensors;
-
+        torch::Tensor constraintTensor;
         void loadDataFromFile(const std::string& filePath);
-        // Make tensor of tensors, each tensor has a map corresponding to the agents
-        //
 
     private:
-        void parseText(std::string text, MAPFInstance &result);
-        void parseRowsAndCols(std::string line, MAPFInstance &result);
-        void parseMap(std::string map_as_txt, MAPFInstance &result);
-        void parseAgentDetails(std::string agent_info, MAPFInstance &result);
 };
 
 #endif
