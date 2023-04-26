@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
     argparse::ArgumentParser program("Model Evaluation");
 
     program.add_argument("--num_train").help("number of train instances to use")
-        .default_value(5000).scan<'i', int>();
+        .default_value(3500).scan<'i', int>();
     
     program.add_argument("--train_path").help("path to load train instances")
         .default_value(string("../../data/instances/train_instances/"));
@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
         .default_value(string{"../../data/labels/train_labels/"});
 
     program.add_argument("--num_test").help("number of test instances to use")
-        .default_value(500).scan<'i', int>();
+        .default_value(100).scan<'i', int>();
 
     program.add_argument("--test_path").help("path to load test instances")
         .default_value(string{"../../data/instances/test_instances/"});
@@ -128,6 +128,9 @@ int main(int argc, char *argv[])
     string outPath = program.get<string>("output_path");
     string modelPath = program.get<string>("model_path");
 
+    int numTest = program.get<int>("num_test");
+    int numTrain = program.get<int>("num_train");
+
     int counter;
     bool timeout;
     int id;
@@ -165,11 +168,11 @@ int main(int argc, char *argv[])
     std::vector<float> orig_counts;
     std::vector<float> orig_constraints;
 
-    for(int i=0; i<program.get<int>("num_test"); i++)
+    for(int i=0; i<numTest; i++)
     {   
         printf("Processing sample %d\n", i);
         
-        int id = i;
+        int id = i+numTrain;
         filePath = instancePath + to_string(id) + ".txt";
         mapfProblem = loader.loadInstanceFromFile(filePath);
         
@@ -178,17 +181,22 @@ int main(int argc, char *argv[])
 
         bool timeout = false;
         trainMetrics metrics = runOneInstance(mapfProblem, testLoader, counter, ttimer, optimizer, &model, device, timeout);
-        cout<<"TRAIN RESULTS | elapsedTime: " << metrics.elapsedTime << ", counter: " << metrics.counter << ", numConstraint: " << metrics.numConstraint << ", loss: " <<  metrics.avgLoss << "\n";
-        cout<<"ORIGI RESULTS | elapsedTime: " << testLoader.metrics.elapsedTime << ", counter: " << testLoader.metrics.counter << ", numConstraint: " << testLoader.metrics.numConstraint << "\n";
-        
-        inte_losses.push_back(metrics.avgLoss);
-        inte_times.push_back(metrics.elapsedTime);
-        inte_counts.push_back(metrics.counter);
-        inte_constraints.push_back(metrics.numConstraint);
+        if(!timeout){
+            cout<<"TRAIN RESULTS | elapsedTime: " << metrics.elapsedTime << ", counter: " << metrics.counter << ", numConstraint: " << metrics.numConstraint << "\n";
+            cout<<"ORIGI RESULTS | elapsedTime: " << testLoader.metrics.elapsedTime << ", counter: " << testLoader.metrics.counter << ", numConstraint: " << testLoader.metrics.numConstraint << "\n";
+            
+            inte_losses.push_back(metrics.avgLoss);
+            inte_times.push_back(metrics.elapsedTime);
+            inte_counts.push_back(metrics.counter);
+            inte_constraints.push_back(metrics.numConstraint);
 
-        orig_times.push_back(testLoader.metrics.elapsedTime);
-        orig_counts.push_back(testLoader.metrics.counter);
-        orig_constraints.push_back(testLoader.metrics.numConstraint);
+            orig_times.push_back(testLoader.metrics.elapsedTime);
+            orig_counts.push_back(testLoader.metrics.counter);
+            orig_constraints.push_back(testLoader.metrics.numConstraint);
+        }else{
+            numTest++;
+        }
+
         
     }
     float inte_loss = std::accumulate(inte_losses.begin(), inte_losses.end(), 0.0) / inte_losses.size();

@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
         .default_value(string{"../../data/outputs/train_outputs.txt"});
     
     program.add_argument("--model_path").help("path to models")
-        .default_value(string{"../../data/models/"});
+        .default_value(string{"../../data/models/latest.pt"});
     
     program.add_argument("--lr").help("learning rate for model training")
         .default_value(0.003f).scan<'f', float>();
@@ -180,7 +180,7 @@ int main(int argc, char *argv[])
             writeMetricsToFile(metrics, filePath);
             
             if(i%program.get<int>("eval_freq")==0){
-                torch::save(model, modelPath+"latest_0.pt");
+                torch::save(model, modelPath);
 
                 // cout<<"---------------------VALIDATION START---------------------\n";
 

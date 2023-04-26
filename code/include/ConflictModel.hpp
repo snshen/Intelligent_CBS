@@ -19,6 +19,12 @@ class ConfNetImpl : public torch::nn::Module {
         torch::nn::Conv2d(torch::nn::Conv2dOptions(64, 64, 3).stride(1).padding(1)),
         torch::nn::BatchNorm2d(64),
         torch::nn::ReLU(),
+        torch::nn::Conv2d(torch::nn::Conv2dOptions(64, 64, 3).stride(1).padding(1)), //uncomment for version 1
+        torch::nn::BatchNorm2d(64),
+        torch::nn::ReLU(),
+        torch::nn::Conv2d(torch::nn::Conv2dOptions(64, 64, 3).stride(1).padding(1)),
+        torch::nn::BatchNorm2d(64),
+        torch::nn::ReLU(),
         torch::nn::Conv2d(torch::nn::Conv2dOptions(64, 64, 3).stride(1).padding(1)),
         torch::nn::BatchNorm2d(64),
         torch::nn::ReLU(),
