@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
     argparse::ArgumentParser program("Model Evaluation");
 
     program.add_argument("--num_train").help("number of train instances to use")
-        .default_value(3500).scan<'i', int>();
+        .default_value(5000).scan<'i', int>();
     
     program.add_argument("--train_path").help("path to load train instances")
         .default_value(string("../../data/instances/train_instances/"));
@@ -123,8 +123,8 @@ int main(int argc, char *argv[])
     const double weight_decay = 1e-3;
     const size_t num_epochs = 10;
 
-    string instancePath = program.get<string>("train_path");
-    string labelPath = program.get<string>("train_label_path");
+    string instancePath = program.get<string>("test_path");
+    string labelPath = program.get<string>("test_label_path");
     string outPath = program.get<string>("output_path");
     string modelPath = program.get<string>("model_path");
 
@@ -142,7 +142,7 @@ int main(int argc, char *argv[])
     float bestLoss = 100;
 
     // Model
-    string filePath = instancePath + to_string(0) + ".txt";
+    string filePath = "../../data/instances/test_instances/5000.txt";
     MAPFInstance mapfProblem = loader.loadInstanceFromFile(filePath);
 
     ConfNet model(mapfProblem.cols, mapfProblem.rows, 64, 1); //, *modelPtr;
@@ -168,11 +168,13 @@ int main(int argc, char *argv[])
     std::vector<float> orig_counts;
     std::vector<float> orig_constraints;
 
+    int timeoutNum = 0;
+
     for(int i=0; i<numTest; i++)
     {   
-        printf("Processing sample %d\n", i);
-        
         int id = i+numTrain;
+        printf("Processing sample %d\n", id);
+
         filePath = instancePath + to_string(id) + ".txt";
         mapfProblem = loader.loadInstanceFromFile(filePath);
         
@@ -193,13 +195,14 @@ int main(int argc, char *argv[])
             orig_times.push_back(testLoader.metrics.elapsedTime);
             orig_counts.push_back(testLoader.metrics.counter);
             orig_constraints.push_back(testLoader.metrics.numConstraint);
-        }else{
-            numTest++;
+        }
+        else{
+            timeoutNum++;
         }
 
         
     }
-    float inte_loss = std::accumulate(inte_losses.begin(), inte_losses.end(), 0.0) / inte_losses.size();
+    
     float inte_time = std::accumulate(inte_times.begin(), inte_times.end(), 0.0) / inte_times.size();
     float inte_count = std::accumulate(inte_counts.begin(), inte_counts.end(), 0.0) / inte_counts.size();
     float inte_constraint = std::accumulate(inte_constraints.begin(), inte_constraints.end(), 0.0) / inte_constraints.size();
@@ -209,8 +212,9 @@ int main(int argc, char *argv[])
     float orig_constraint = std::accumulate(orig_constraints.begin(), orig_constraints.end(), 0.0) / orig_constraints.size();
 
     cout<<"---------------------FINAL RESULTS---------------------\n";
-    cout<<"INTELLIGENT | elapsedTime: " << inte_time << ", counter: " << inte_count << ", numConstraint: " << inte_constraint << ", loss: " << inte_loss << "\n";
+    cout<<"INTELLIGENT | elapsedTime: " << inte_time << ", counter: " << inte_count << ", numConstraint: " << inte_constraint << "\n";
     cout<<"ORIGINAL | elapsedTime: " << orig_time << ", counter: " << orig_count << ", numConstraint: " << orig_constraint << "\n";
+    cout<<"Number of skipped instances" << timeoutNum << "\n";
     
     return 0;
 };

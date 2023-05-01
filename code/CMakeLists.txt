@@ -45,6 +45,11 @@ target_link_libraries(EvalModel argparse)
 target_link_libraries(EvalModel cbsSolver)
 target_link_libraries(EvalModel "${TORCH_LIBRARIES}")
 
+add_executable(OnlineEval src/OnlineEval.cpp src/Instance.cpp src/DataLoader.cpp src/MAPFLoader.cpp src/ConflictModel.cpp)
+target_link_libraries(OnlineEval argparse)
+target_link_libraries(OnlineEval cbsSolver)
+target_link_libraries(OnlineEval "${TORCH_LIBRARIES}")
+
 add_test(NAME TestMAPFLoader
         COMMAND TestMAPFLoader)
 add_test(NAME TestAStar

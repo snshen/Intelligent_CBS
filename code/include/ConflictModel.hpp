@@ -28,6 +28,9 @@ class ConfNetImpl : public torch::nn::Module {
         torch::nn::Conv2d(torch::nn::Conv2dOptions(64, 64, 3).stride(1).padding(1)),
         torch::nn::BatchNorm2d(64),
         torch::nn::ReLU(),
+        torch::nn::Conv2d(torch::nn::Conv2dOptions(64, 64, 3).stride(1).padding(1)),
+        torch::nn::BatchNorm2d(64),
+        torch::nn::ReLU(),
         torch::nn::ConvTranspose2d(torch::nn::ConvTranspose2dOptions(64, 1, 3).stride(1).padding(1)),
         torch::nn::BatchNorm2d(1),
         torch::nn::Sigmoid()

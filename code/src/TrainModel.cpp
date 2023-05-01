@@ -98,10 +98,10 @@ int main(int argc, char *argv[])
         .default_value(string{"../../data/outputs/train_outputs.txt"});
     
     program.add_argument("--model_path").help("path to models")
-        .default_value(string{"../../data/models/latest.pt"});
+        .default_value(string{"../../data/models/"});
     
     program.add_argument("--lr").help("learning rate for model training")
-        .default_value(0.003f).scan<'f', float>();
+        .default_value(0.002f).scan<'f', float>();
     
     program.add_argument("--eval_freq").help("frequecy to save model with")
         .default_value(1000).scan<'i', int>();
@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
 
     const double learning_rate = program.get<float>("lr");
     const double weight_decay = 1e-3;
-    const size_t num_epochs = 10;
+    const size_t num_epochs = 3;
 
     string instancePath = program.get<string>("train_path");
     string labelPath = program.get<string>("train_label_path");
@@ -160,11 +160,11 @@ int main(int argc, char *argv[])
     // Set floating point output precision
     std::cout << std::fixed << std::setprecision(4);
 
-    for (size_t epoch = 0; epoch != num_epochs; ++epoch) {
+    for (int epoch = 0; epoch != num_epochs; ++epoch) {
         cout<<"---------------------EPOCH "<<epoch<<"---------------------\n";
         for(int i=0; i<program.get<int>("num_train"); i++)
         {   
-            printf("Processing sample %d\n", i);
+            printf("Epoch: %d, Processing sample: %d\n", epoch, i);
 
             filePath = instancePath + to_string(i) + ".txt";
             mapfProblem = loader.loadInstanceFromFile(filePath);
@@ -180,7 +180,8 @@ int main(int argc, char *argv[])
             writeMetricsToFile(metrics, filePath);
             
             if(i%program.get<int>("eval_freq")==0){
-                torch::save(model, modelPath);
+                string currPath = modelPath + "epoch_" + to_string(epoch) + "_sample_" + to_string(i) + ".pt";
+                torch::save(model, currPath);
 
                 // cout<<"---------------------VALIDATION START---------------------\n";
 
